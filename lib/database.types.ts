@@ -472,6 +472,54 @@ export type Database = {
           },
         ]
       }
+      community_posts: {
+        Row: {
+          author_avatar_url: string | null
+          author_name: string
+          body: Json
+          created_at: string
+          focus_session_id: string | null
+          id: string
+          kind: string
+          user_id: string
+        }
+        Insert: {
+          author_avatar_url?: string | null
+          author_name: string
+          body?: Json
+          created_at?: string
+          focus_session_id?: string | null
+          id?: string
+          kind?: string
+          user_id: string
+        }
+        Update: {
+          author_avatar_url?: string | null
+          author_name?: string
+          body?: Json
+          created_at?: string
+          focus_session_id?: string | null
+          id?: string
+          kind?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_posts_focus_session_id_fkey"
+            columns: ["focus_session_id"]
+            isOneToOne: true
+            referencedRelation: "focus_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_posts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feature_votes: {
         Row: {
           feature_id: string
@@ -736,7 +784,9 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          notification_prefs: Json
           purpose: string
+          timezone: string
           updated_at: string
           whatsapp_phone_e164: string | null
           whatsapp_verified_at: string | null
@@ -747,7 +797,9 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
+          notification_prefs?: Json
           purpose?: string
+          timezone?: string
           updated_at?: string
           whatsapp_phone_e164?: string | null
           whatsapp_verified_at?: string | null
@@ -758,7 +810,9 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          notification_prefs?: Json
           purpose?: string
+          timezone?: string
           updated_at?: string
           whatsapp_phone_e164?: string | null
           whatsapp_verified_at?: string | null
@@ -929,6 +983,19 @@ export type Database = {
       feature_vote_counts: {
         Args: { target_season?: string }
         Returns: { feature_id: string; votes: number }[]
+      }
+      publish_focus_session: {
+        Args: { target_session: string; show_name?: boolean }
+        Returns: {
+          author_avatar_url: string | null
+          author_name: string
+          body: Json
+          created_at: string
+          focus_session_id: string | null
+          id: string
+          kind: string
+          user_id: string
+        }
       }
       get_my_credit_account: {
         Args: Record<PropertyKey, never>
