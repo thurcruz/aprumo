@@ -21,7 +21,7 @@ export default function OnboardingPage() {
     if (!canContinue) return; setLoading(true)
     const displayName = name.trim(); const userPurpose = purpose.trim()
     setUserName(displayName); setPurpose(userPurpose)
-    addGoal({ id: crypto.randomUUID(), title: goal.trim(), description: `Primeira meta definida no onboarding em ${areas.find(item=>item.id===area)?.label}.`, category: area, deadline: new Date(Date.now()+90*86400000).toISOString().slice(0,10), progress: 0, milestones: [], linkedTasks: [] })
+    addGoal({ id: crypto.randomUUID(), title: goal.trim(), description: `Primeira meta definida no onboarding em ${areas.find(item=>item.id===area)?.label}.`, category: area, deadline: new Date(Date.now()+90*86400000).toISOString().slice(0,10), progress: 0, milestones: [], linkedTasks: [], status: 'active' })
     try { await fetch('/api/profile', { method:'PUT', headers:{'content-type':'application/json'}, body:JSON.stringify({displayName,purpose:userPurpose}) }) } catch { /* Offline-first store remains available. */ }
     router.push('/hoje'); router.refresh()
   }
