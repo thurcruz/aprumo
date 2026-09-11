@@ -155,6 +155,16 @@ export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
+/** "6,5 h" — horas com vírgula decimal, como se escreve no Brasil. */
+export function formatHours(hours: number): string {
+  return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(hours)} h`
+}
+
+/** Só a primeira letra em maiúscula: "setembro de 2026" vira "Setembro de 2026", sem mexer no "de". */
+export function capitalizeFirst(text: string): string {
+  return text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1)
+}
+
 export function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })

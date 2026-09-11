@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Plus, Repeat2, X } from 'lucide-react'
 import { useAprumoStore } from '@/lib/store'
 import type { DayBlock, Task } from '@/lib/types'
-import { endTimeOf, indexEvents, isDoneOn, isoDate as iso, minutesBetween, parseDate as parse, taskShowsOn, weekStart } from '@/lib/utils'
+import { capitalizeFirst, endTimeOf, indexEvents, isDoneOn, isoDate as iso, minutesBetween, parseDate as parse, taskShowsOn, weekStart } from '@/lib/utils'
 import TimeRange from '@/components/modules/TimeRange'
 
 type View = 'semana' | 'mes'
@@ -77,9 +77,11 @@ function AgendaContent() {
 
   const toggle = (task: Task) => setTaskDone(task, selected, !doneOn(task, selected))
 
-  const periodLabel = view === 'semana'
+  // capitalizeFirst, não CSS text-transform: capitalize — que maiuscularia cada
+  // palavra ("De Setembro"), errado em português.
+  const periodLabel = capitalizeFirst(view === 'semana'
     ? `${week[0].getDate()} – ${week[6].getDate()} de ${new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(week[6])}`
-    : new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(cursor)
+    : new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(cursor))
 
   return <div className="page-wrap">
     <header className="flex flex-wrap items-end justify-between gap-5">
@@ -100,7 +102,7 @@ function AgendaContent() {
       </div>
       <div className="ml-auto flex items-center gap-2">
         <button aria-label="Anterior" className="icon-button h-9 w-9" onClick={() => shift(-1)}><ChevronLeft size={17}/></button>
-        <strong className="min-w-40 text-center text-sm capitalize">{periodLabel}</strong>
+        <strong className="min-w-40 text-center text-sm">{periodLabel}</strong>
         <button aria-label="Próximo" className="icon-button h-9 w-9" onClick={() => shift(1)}><ChevronRight size={17}/></button>
         <button onClick={goToday} className="rounded-full border px-3 py-1.5 text-xs font-semibold" style={{ borderColor: 'var(--line)', color: 'var(--muted)' }}>Hoje</button>
       </div>
@@ -185,8 +187,8 @@ function AgendaContent() {
         <p className="muted mb-2 mt-4 text-xs">Período do dia</p>
         <div className="flex flex-wrap gap-1.5">
           {(['manha','tarde','noite','livre'] as DayBlock[]).map(item => <button key={item} onClick={() => setBlock(item)}
-            className="rounded-full border px-3 py-2 text-xs capitalize transition"
-            style={{ borderColor: block === item ? 'var(--energy)' : 'var(--line)', background: block === item ? 'var(--energy)' : 'transparent', color: block === item ? '#11130f' : 'var(--muted)' }}>{item === 'manha' ? 'Manhã' : item === 'livre' ? 'Sem horário' : item}</button>)}
+            className="rounded-full border px-3 py-2 text-xs transition"
+            style={{ borderColor: block === item ? 'var(--energy)' : 'var(--line)', background: block === item ? 'var(--energy)' : 'transparent', color: block === item ? '#11130f' : 'var(--muted)' }}>{item === 'manha' ? 'Manhã' : item === 'livre' ? 'Sem horário' : capitalizeFirst(item)}</button>)}
         </div>
         <p className="muted mt-5 text-xs">Precisa que se repita toda semana? Crie como <Link href="/tarefas" className="text-energy no-underline">hábito</Link>.</p>
         <button className="energy-button mt-4 w-full py-3" onClick={create}>Salvar na agenda</button>

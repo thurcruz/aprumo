@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { ArrowLeft, Moon } from 'lucide-react'
 import { useAprumoStore } from '@/lib/store'
+import { formatHours } from '@/lib/utils'
 import type { MoodLevel } from '@/lib/types'
 
 const qualities: { level: MoodLevel; label: string }[] = [
@@ -43,12 +44,12 @@ export default function SonoPage() {
         <button onClick={save} className="energy-button mt-6 w-full py-3">Salvar noite</button>
       </section>
       <section className="surface p-6">
-        <div className="flex items-center justify-between"><p className="eyebrow">Últimas noites</p><span className="muted text-sm">média {avg.toFixed(1)}h</span></div>
+        <div className="flex items-center justify-between"><p className="eyebrow">Últimas noites</p>{entries.length > 0 && <span className="muted text-sm">média {formatHours(avg)}</span>}</div>
         <div className="mt-5 space-y-2">
           {entries.length === 0 && <p className="muted text-sm">Nenhum registro ainda.</p>}
           {entries.map(entry => <div key={entry.id} className="flex items-center gap-3 rounded-2xl border border-white/[.07] p-3">
             <Moon size={16} className="text-energy"/>
-            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{entry.hours}h · {qualities.find(option => option.level === entry.quality)?.label}</p>{entry.note && <p className="muted text-xs">{entry.note}</p>}</div>
+            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{formatHours(entry.hours)} · {qualities.find(option => option.level === entry.quality)?.label}</p>{entry.note && <p className="muted text-xs">{entry.note}</p>}</div>
             <span className="muted shrink-0 text-xs">{new Date(entry.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
           </div>)}
         </div>
