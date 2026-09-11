@@ -472,6 +472,35 @@ export type Database = {
           },
         ]
       }
+      feature_votes: {
+        Row: {
+          feature_id: string
+          season: string
+          user_id: string
+          voted_at: string
+        }
+        Insert: {
+          feature_id: string
+          season?: string
+          user_id: string
+          voted_at?: string
+        }
+        Update: {
+          feature_id?: string
+          season?: string
+          user_id?: string
+          voted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_votes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_goals: {
         Row: {
           created_at: string
@@ -703,6 +732,7 @@ export type Database = {
       profiles: {
         Row: {
           ai_permissions: Json
+          avatar_url: string | null
           created_at: string
           display_name: string | null
           id: string
@@ -713,6 +743,7 @@ export type Database = {
         }
         Insert: {
           ai_permissions?: Json
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           id: string
@@ -723,6 +754,7 @@ export type Database = {
         }
         Update: {
           ai_permissions?: Json
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
@@ -894,6 +926,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      feature_vote_counts: {
+        Args: { target_season?: string }
+        Returns: { feature_id: string; votes: number }[]
+      }
       get_my_credit_account: {
         Args: Record<PropertyKey, never>
         Returns: { balance: number }[]
