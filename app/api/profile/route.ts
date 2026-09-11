@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 const permissionKeys = ['tasks', 'goals', 'books', 'moods', 'finance', 'antivicio'] as const
+/** Nome de arquivo que o próprio app gera: sem pastas, sem `..`. */
+const AVATAR_FILE = /^[\w-]+\.(?:jpg|jpeg|png|webp)$/
 
 async function authenticatedContext() {
   const supabase = await createSupabaseServerClient()
@@ -14,9 +16,15 @@ export async function GET() {
   try {
     const context = await authenticatedContext()
     if (!context) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-    const { data, error } = await context.supabase.from('profiles').select('display_name, purpose, ai_permissions, created_at').eq('id', context.user.id).single()
+    // `*` em vez de uma lista de colunas: enquanto a migração da foto não rodar,
+    // `avatar_url` simplesmente não vem — pedir a coluna pelo nome derrubaria o
+    // carregamento do perfil inteiro, e com ele o nome em todas as telas.
+    const { data, error } = await context.supabase.from('profiles').select('*').eq('id', context.user.id).single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ profile: data, email: context.user.email ?? null })
+    return NextResponse.json({
+      profile: { display_name: data.display_name, purpose: data.purpose, ai_permissions: data.ai_permissions, created_at: data.created_at, avatar_url: data.avatar_url ?? null },
+      email: context.user.email ?? null,
+    })
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Perfil indisponível' }, { status: 503 }) }
 }
 
@@ -24,20 +32,28 @@ export async function PUT(request: Request) {
   try {
     const context = await authenticatedContext()
     if (!context) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-    const body = await request.json() as { displayName?: unknown; purpose?: unknown; aiPermissions?: unknown }
-    const update: { display_name?: string; purpose?: string; ai_permissions?: Record<string, boolean>; updated_at: string } = { updated_at: new Date().toISOString() }
+    const body = await request.json() as { displayName?: unknown; purpose?: unknown; aiPermissions?: unknown; avatarUrl?: unknown }
+    const update: { display_name?: string; purpose?: string; ai_permissions?: Record<string, boolean>; avatar_url?: string | null; updated_at: string } = { updated_at: new Date().toISOString() }
     if (body.displayName !== undefined) {
-      if (typeof body.displayName !== 'string' || body.displayName.trim().length < 2 || body.displayName.trim().length > 60) return NextResponse.json({ error: 'Nome inválido' }, { status: 400 })
+      if (typeof body.displayName !== 'string' || body.displayName.trim().length < 2 || body.displayName.trim().length > 60) return NextResponse.json({ error: 'O nome precisa ter entre 2 e 60 letras.' }, { status: 400 })
       update.display_name = body.displayName.trim()
     }
     if (body.purpose !== undefined) {
-      if (typeof body.purpose !== 'string' || body.purpose.length > 180) return NextResponse.json({ error: 'Propósito inválido' }, { status: 400 })
+      if (typeof body.purpose !== 'string' || body.purpose.length > 180) return NextResponse.json({ error: 'O propósito pode ter no máximo 180 caracteres.' }, { status: 400 })
       update.purpose = body.purpose.trim()
     }
     if (body.aiPermissions !== undefined) {
       if (!body.aiPermissions || typeof body.aiPermissions !== 'object' || Array.isArray(body.aiPermissions)) return NextResponse.json({ error: 'Permissões inválidas' }, { status: 400 })
       const source = body.aiPermissions as Record<string, unknown>
       update.ai_permissions = Object.fromEntries(permissionKeys.map(key => [key, source[key] === true]))
+    }
+    if (body.avatarUrl !== undefined) {
+      // Só vale a foto que o próprio usuário subiu para a pasta dele no bucket:
+      // a comunidade vai exibir essa URL, e ela não pode apontar para qualquer lugar.
+      const base = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${context.user.id}/`
+      if (body.avatarUrl === null) update.avatar_url = null
+      else if (typeof body.avatarUrl === 'string' && body.avatarUrl.startsWith(base) && AVATAR_FILE.test(body.avatarUrl.slice(base.length))) update.avatar_url = body.avatarUrl
+      else return NextResponse.json({ error: 'Foto inválida' }, { status: 400 })
     }
     const { data, error } = await context.supabase.from('profiles').update(update).eq('id', context.user.id).select('display_name, purpose, ai_permissions, updated_at').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
