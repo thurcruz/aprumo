@@ -31,14 +31,14 @@ export default function SonoPage() {
   }
 
   return <div className="page-wrap">
-    <Link href="/corpo" className="muted mb-5 inline-flex items-center gap-2 text-sm no-underline"><ArrowLeft size={15}/> Corpo</Link>
+    <Link href="/saude" className="muted mb-5 inline-flex items-center gap-2 text-sm no-underline"><ArrowLeft size={15}/> Saúde</Link>
     <header className="mb-8"><p className="eyebrow">Sono</p><h1 className="display mt-3 text-4xl font-semibold md:text-5xl">Descanso também é treino.</h1><p className="muted mt-4 max-w-xl">Registre quanto e como você dormiu. Os padrões aparecem com o tempo.</p></header>
     <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
       <section className="surface p-6">
         <p className="eyebrow">Registrar noite</p>
         <label className="muted mt-5 block text-xs">Horas dormidas<input className="field mt-2" type="number" step="0.5" min="0" max="24" value={hours} onChange={event => setHours(event.target.value)}/></label>
         <p className="muted mt-5 text-xs">Qualidade percebida</p>
-        <div className="mt-2 flex gap-2">{qualities.map(option => <button key={option.level} onClick={() => setQuality(option.level)} className="flex-1 rounded-xl border px-2 py-2 text-xs" style={{ borderColor: quality === option.level ? 'var(--energy)' : 'var(--line)', color: quality === option.level ? 'var(--energy)' : 'var(--muted)' }}>{option.label}</button>)}</div>
+        <div className="mt-2 flex gap-2">{qualities.map(option => <button key={option.level} onClick={() => setQuality(option.level)} className="flex-1 rounded-xl border px-2 py-2 text-xs" style={{ borderColor: quality === option.level ? 'var(--energy)' : 'var(--line)', color: quality === option.level ? 'var(--accent)' : 'var(--muted)' }}>{option.label}</button>)}</div>
         <label className="muted mt-5 block text-xs">Nota (opcional)<input className="field mt-2" value={note} onChange={event => setNote(event.target.value)} placeholder="Dormi tarde, acordei bem…"/></label>
         <button onClick={save} className="energy-button mt-6 w-full py-3">Salvar noite</button>
       </section>

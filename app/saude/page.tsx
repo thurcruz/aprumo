@@ -4,7 +4,7 @@ import { ArrowRight, Dumbbell, Moon, Scale, ShieldCheck, Smile } from 'lucide-re
 const areas = [
   { href: '/treino', label: 'Treinos', desc: 'Fichas, séries e repetições. Marque o que realizou.', icon: Dumbbell },
   { href: '/emocional', label: 'Humor & bem-estar', desc: 'Registro rápido de como você está hoje.', icon: Smile },
-  { href: '/corpo/sono', label: 'Sono', desc: 'Horas dormidas e qualidade percebida.', icon: Moon },
+  { href: '/saude/sono', label: 'Sono', desc: 'Horas dormidas e qualidade percebida.', icon: Moon },
   { href: '/antivicio', label: 'Antivício', desc: 'Contador, gatilhos e plano de contingência.', icon: ShieldCheck },
 ]
 
@@ -15,7 +15,7 @@ const soon = [
 export default function SaudePage() {
   return <div className="page-wrap">
     <header className="mb-10">
-      <p className="eyebrow">Corpo</p>
+      <p className="eyebrow">Saúde</p>
       <h1 className="display mt-3 max-w-2xl text-4xl font-semibold md:text-6xl">Cuide da base.<br/>O resto se sustenta.</h1>
       <p className="muted mt-4 max-w-xl">Treino, bem-estar e descanso em um lugar só — simples e sem virar planilha de dieta.</p>
     </header>
