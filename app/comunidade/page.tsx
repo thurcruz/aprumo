@@ -1,12 +1,16 @@
 'use client'
 
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Plus, Trophy, UsersRound, Vote, WifiOff } from 'lucide-react'
+import { Check, Flame, Plus, Trash2, Trophy, UsersRound, Vote, WifiOff } from 'lucide-react'
 import { castVote, getCommunityServerSnapshot, getCommunitySnapshot, subscribeCommunity } from '@/lib/community'
 import { tally, voteFeatures } from '@/lib/votes'
+import { deletePost, getFeedServerSnapshot, getFeedSnapshot, subscribeFeed } from '@/lib/feed'
+import { postHeadline, timeAgo } from '@/lib/posts'
+import { initialsOf } from '@/lib/profile'
 
 const tabs = [
+  { id: 'mural', label: 'Mural' },
   { id: 'desafios', label: 'Desafios' },
   { id: 'circulos', label: 'Círculos' },
   { id: 'votacao', label: 'Votação' },
@@ -22,11 +26,16 @@ function EmptyState({ icon: Icon, title, description, action }: { icon: typeof T
 }
 
 export default function Comunidade() {
-  const [tab, setTab] = useState<TabId>('desafios')
+  const [tab, setTab] = useState<TabId>('mural')
   const state = useSyncExternalStore(subscribeCommunity, getCommunitySnapshot, getCommunityServerSnapshot)
   /** O placar só existe depois do voto — o servidor não o entrega antes. */
   const results = useMemo(() => state.counts ? tally(state.counts) : null, [state.counts])
   const busy = state.pending || state.status === 'loading'
+
+  const feed = useSyncExternalStore(subscribeFeed, getFeedSnapshot, getFeedServerSnapshot)
+  // "agora" do tempo relativo: uma vez por minuto, não a cada render.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(timer) }, [])
 
   return <div className="page-wrap">
     <header className="mb-8">
@@ -40,6 +49,27 @@ export default function Comunidade() {
     </nav>
 
     <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+      {tab === 'mural' && <div className="space-y-3">
+        {feed.status === 'local' && <p className="muted rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)' }}>Modo local: sem servidor configurado, o mural não fica disponível.</p>}
+        {feed.status === 'unavailable' && <p className="muted rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)' }}>O mural ainda não foi ativado no servidor.</p>}
+        {feed.status === 'offline' && feed.posts.length === 0 && <p className="flex items-center gap-2 rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)', color: 'var(--muted)' }}><WifiOff size={14} className="shrink-0"/> Não conseguimos falar com o servidor agora.</p>}
+        {(feed.status === 'ready' || feed.status === 'offline') && feed.posts.length === 0 && <EmptyState
+          icon={Flame}
+          title="Ninguém publicou ainda"
+          description="Quando você concluir uma sessão de foco de pelo menos 5 minutos, pode compartilhar aqui."
+        />}
+        {feed.posts.map(post => <div key={post.id} className="surface flex items-start gap-3 p-4">
+          {post.authorAvatarUrl
+            ? <span className="h-9 w-9 shrink-0 rounded-full bg-cover bg-center" style={{ backgroundImage: `url(${JSON.stringify(post.authorAvatarUrl)})` }} aria-hidden/>
+            : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/5 text-xs font-bold" aria-hidden>{initialsOf(post.authorName)}</span>}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2"><p className="text-sm font-semibold">{post.authorName}</p><span className="muted text-xs">· {timeAgo(post.createdAt, now)}</span></div>
+            <p className="mt-1 flex items-center gap-1.5 text-sm"><Flame size={14} className="shrink-0 text-energy"/> {postHeadline(post)}{post.status === 'abandoned' && <span className="muted"> · interrompida</span>}</p>
+          </div>
+          {post.mine && <button onClick={() => void deletePost(post.id)} aria-label="Apagar publicação" className="muted shrink-0 rounded-lg p-1.5 hover:text-danger"><Trash2 size={15}/></button>}
+        </div>)}
+      </div>}
+
       {tab === 'desafios' && <EmptyState
         icon={Trophy}
         title="Nenhum desafio ativo"

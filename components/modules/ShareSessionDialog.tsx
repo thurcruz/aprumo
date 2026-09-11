@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Copy, Download, Image as ImageIcon, Share2, X } from 'lucide-react'
+import { Check, Copy, Download, Image as ImageIcon, Share2, UsersRound, X } from 'lucide-react'
 import type { FocusSession } from '@/lib/types'
 import { canvasToBlob, drawSessionCard, sessionText, shareImage, shareSession } from '@/lib/share'
+import { publishFocusSession } from '@/lib/feed'
 
 type Status = 'idle' | 'shared' | 'copied' | 'downloaded' | 'failed'
+type PostStatus = 'idle' | 'busy' | 'done' | 'failed'
 
 const messages: Record<Exclude<Status, 'idle'>, string> = {
   shared: 'Compartilhado.',
@@ -27,6 +29,10 @@ export default function ShareSessionDialog({ session, userName, onClose }: {
   /** No servidor não há navigator; o rótulo assume "copiar" até a hidratação. */
   const canShare = typeof navigator !== 'undefined' && 'share' in navigator
 
+  const [showName, setShowName] = useState(false)
+  const [postStatus, setPostStatus] = useState<PostStatus>('idle')
+  const [postError, setPostError] = useState('')
+
   // O card é desenhado uma vez, e o mesmo canvas serve de prévia e de origem do PNG.
   useEffect(() => {
     if (canvas.current) drawSessionCard(canvas.current, session, userName)
@@ -44,6 +50,14 @@ export default function ShareSessionDialog({ session, userName, onClose }: {
     const blob = await canvasToBlob(canvas.current)
     setStatus(blob ? await shareImage(blob, session) : 'failed')
     setBusy(false)
+  }
+
+  async function onPublish() {
+    setPostStatus('busy')
+    setPostError('')
+    const result = await publishFocusSession(session.id, showName)
+    if (result.ok) setPostStatus('done')
+    else { setPostStatus('failed'); setPostError(result.error) }
   }
 
   return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -77,6 +91,19 @@ export default function ShareSessionDialog({ session, userName, onClose }: {
         {status === 'failed' ? null : status === 'downloaded' ? <Download size={13}/> : <Check size={13}/>}
         {messages[status]}
       </p>}
+
+      <div className="mt-5 border-t pt-5" style={{ borderColor: 'var(--line)' }}>
+        <label className="flex items-center gap-2.5 text-xs" style={{ color: 'var(--muted)' }}>
+          <input type="checkbox" checked={showName} onChange={event => setShowName(event.target.checked)} disabled={postStatus === 'done'}/>
+          Mostrar no que focou
+        </label>
+        <button onClick={onPublish} disabled={postStatus === 'busy' || postStatus === 'done'}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border py-3 text-sm"
+          style={{ borderColor: 'var(--line)', opacity: postStatus === 'busy' ? .6 : 1 }}>
+          {postStatus === 'done' ? <><Check size={16}/> Publicado na comunidade</> : <><UsersRound size={16}/> Publicar na comunidade</>}
+        </button>
+        {postStatus === 'failed' && <p className="mt-2 text-center text-xs" style={{ color: 'var(--danger)' }}>{postError}</p>}
+      </div>
     </motion.div>
   </motion.div>
 }
