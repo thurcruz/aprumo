@@ -786,6 +786,7 @@ export type Database = {
           id: string
           notification_prefs: Json
           purpose: string
+          stripe_customer_id: string | null
           timezone: string
           updated_at: string
           whatsapp_phone_e164: string | null
@@ -799,6 +800,7 @@ export type Database = {
           id: string
           notification_prefs?: Json
           purpose?: string
+          stripe_customer_id?: string | null
           timezone?: string
           updated_at?: string
           whatsapp_phone_e164?: string | null
@@ -812,10 +814,44 @@ export type Database = {
           id?: string
           notification_prefs?: Json
           purpose?: string
+          stripe_customer_id?: string | null
           timezone?: string
           updated_at?: string
           whatsapp_phone_e164?: string | null
           whatsapp_verified_at?: string | null
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          id: string
+          price_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          id: string
+          price_id: string
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          price_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -891,6 +927,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_link_codes: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string
+          phone_e164: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at: string
+          phone_e164: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string
+          phone_e164?: string
+        }
+        Relationships: []
+      }
+      whatsapp_processed_messages: {
+        Row: {
+          created_at: string
+          wamid: string
+        }
+        Insert: {
+          created_at?: string
+          wamid: string
+        }
+        Update: {
+          created_at?: string
+          wamid?: string
+        }
+        Relationships: []
       }
       workout_plans: {
         Row: {
@@ -999,6 +1071,18 @@ export type Database = {
       }
       get_my_credit_account: {
         Args: Record<PropertyKey, never>
+        Returns: { balance: number }[]
+      }
+      spend_credits: {
+        Args: { p_amount: number; p_description?: string | null }
+        Returns: { balance: number }[]
+      }
+      grant_credits: {
+        Args: { p_user_id: string; p_amount: number; p_kind: string; p_provider: string; p_provider_reference: string; p_description?: string | null }
+        Returns: Json
+      }
+      spend_credits_for: {
+        Args: { p_user_id: string; p_amount: number; p_description?: string | null }
         Returns: { balance: number }[]
       }
     }

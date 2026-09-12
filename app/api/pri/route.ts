@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import type { Json } from '@/lib/database.types'
-
-type ToolName = 'create_task'|'create_note'|'create_transaction'|'update_book_progress'
-type ProposedAction = { name: ToolName; arguments: Record<string, unknown> }
-type OpenAIResponse = { output?: Array<{ type?: string; name?: ToolName; arguments?: string; content?: Array<{type?:string;text?:string}> }>; error?: {message?:string} }
+import { answerPri, type ProposedAction } from '@/lib/pri-engine'
 
 async function auth() {
   const supabase = await createSupabaseServerClient()
@@ -83,67 +79,16 @@ export async function POST(request: Request) {
       }
     }
 
-    if (typeof body.message !== 'string' || body.message.trim().length < 2 || body.message.length > 2000) return NextResponse.json({ error: 'Mensagem inválida' }, { status: 400 })
-    const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey) return NextResponse.json({ error: 'Configure OPENAI_API_KEY no servidor.' }, { status: 503 })
-    const { data: recent } = await ctx.supabase.from('ai_audit_log').select('id').eq('user_id', ctx.user.id).gte('created_at', new Date(Date.now()-3600000).toISOString())
-    if ((recent?.length??0) >= 20) return NextResponse.json({ error: 'Limite temporário atingido. Tente novamente em alguns minutos.' }, { status: 429 })
+    if (typeof body.message !== 'string') return NextResponse.json({ error: 'Mensagem inválida' }, { status: 400 })
 
-    let conversationId = body.conversationId
-    if (!conversationId) {
-      const { data, error } = await ctx.supabase.from('ai_conversations').insert({ user_id: ctx.user.id, title: body.message.trim().slice(0, 70) }).select('id').single()
-      if (error) throw error
-      conversationId = data.id
+    // O miolo (assinatura, crédito, contexto, OpenAI, gravação) é compartilhado
+    // com o canal do WhatsApp — ver lib/pri-engine.ts.
+    const result = await answerPri({ supabase: ctx.supabase, userId: ctx.user.id, message: body.message, conversationId: body.conversationId, channel: 'web' })
+    if (!result.ok) {
+      const status = result.code === 'rate_limited' ? 429 : result.code ? 402 : 400
+      return NextResponse.json({ error: result.error, code: result.code }, { status })
     }
-    await ctx.supabase.from('ai_messages').insert({ user_id: ctx.user.id, conversation_id: conversationId, role: 'user', content: body.message.trim() })
-
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
-    const [profileR, commitmentsR, eventsR, goalsR, booksR, notesR, transactionsR, historyR] = await Promise.all([
-      ctx.supabase.from('profiles').select('display_name,purpose,ai_permissions').eq('id',ctx.user.id).single(),
-      ctx.supabase.from('commitments').select('id,title,category,priority,scheduled_date,start_time,duration_minutes').eq('user_id',ctx.user.id).eq('active',true).limit(40),
-      ctx.supabase.from('commitment_events').select('commitment_id,status,completed_at').eq('user_id',ctx.user.id).eq('scheduled_for',today),
-      ctx.supabase.from('goals').select('id,title,progress,deadline,status').eq('user_id',ctx.user.id).neq('status','archived').limit(20),
-      ctx.supabase.from('books').select('id,title,author,status,current_page,total_pages').eq('user_id',ctx.user.id).limit(30),
-      ctx.supabase.from('knowledge_notes').select('id,title,content,updated_at').eq('user_id',ctx.user.id).order('updated_at',{ascending:false}).limit(15),
-      ctx.supabase.from('transactions').select('description,amount,type,category,occurred_at').eq('user_id',ctx.user.id).order('occurred_at',{ascending:false}).limit(20),
-      ctx.supabase.from('ai_messages').select('role,content').eq('user_id',ctx.user.id).eq('conversation_id',conversationId).order('created_at',{ascending:false}).limit(12),
-    ])
-    const firstError = [profileR,commitmentsR,eventsR,goalsR,booksR,notesR,transactionsR,historyR].find(result=>result.error)?.error
-    if (firstError) throw firstError
-    const permissions = (profileR.data?.ai_permissions??{}) as Record<string,boolean>
-    const eventMap = new Map((eventsR.data??[]).map(event=>[event.commitment_id,event]))
-    const context: Record<string, unknown> = { today, timezone:'America/Sao_Paulo', name:profileR.data?.display_name, purpose:profileR.data?.purpose }
-    const sources: string[] = []
-    if (permissions.tasks!==false) { context.commitments=(commitmentsR.data??[]).map(item=>({...item,status_today:eventMap.get(item.id)?.status??'pending'}));sources.push('commitments') }
-    if (permissions.goals!==false) { context.goals=goalsR.data;sources.push('goals') }
-    if (permissions.books!==false) { context.books=booksR.data;context.notes=notesR.data;sources.push('books','notes') }
-    if (permissions.finance===true) { context.transactions=transactionsR.data;sources.push('finance') }
-
-    const input = [...(historyR.data??[]).reverse().map(item=>({role:item.role,content:item.content})),{role:'user',content:`CONTEXTO ATUAL:\n${JSON.stringify(context)}\n\nPEDIDO:\n${body.message.trim()}`}]
-    const tools = [
-      {type:'function',name:'create_task',description:'Propõe criar uma tarefa, hábito ou compromisso na agenda do usuário.',strict:true,parameters:{type:'object',properties:{title:{type:'string'},category:{type:'string',enum:['fixed','today','carryover']},scheduled_date:{type:['string','null']},start_time:{type:['string','null']},duration_minutes:{type:'number'}},required:['title','category','scheduled_date','start_time','duration_minutes'],additionalProperties:false}},
-      {type:'function',name:'create_note',description:'Propõe registrar uma anotação de conhecimento.',strict:true,parameters:{type:'object',properties:{title:{type:'string'},content:{type:'string'}},required:['title','content'],additionalProperties:false}},
-      {type:'function',name:'create_transaction',description:'Propõe registrar uma entrada ou saída financeira.',strict:true,parameters:{type:'object',properties:{description:{type:'string'},amount:{type:'number'},type:{type:'string',enum:['income','expense']},category:{type:'string'},occurred_at:{type:['string','null']}},required:['description','amount','type','category','occurred_at'],additionalProperties:false}},
-      {type:'function',name:'update_book_progress',description:'Propõe atualizar a página atual de um livro existente.',strict:true,parameters:{type:'object',properties:{book_id:{type:'string'},current_page:{type:'number'}},required:['book_id','current_page'],additionalProperties:false}},
-    ]
-    const response = await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{authorization:`Bearer ${apiKey}`,'content-type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_MODEL??'gpt-5.6-luna',reasoning:{effort:'low'},max_output_tokens:700,store:false,tools,instructions:'Você é a Pri, copiloto de evolução pessoal. Responda em português do Brasil. Use apenas o contexto autorizado. Para registrar ou alterar dados, use exatamente uma ferramenta; nunca afirme que gravou algo. A aplicação solicitará confirmação antes de executar. Em perguntas sobre o que falta hoje, exclua status_today completed. Datas e horários devem usar o fuso informado. Não diagnostique nem dê aconselhamento financeiro profissional.',input})})
-    const payload = await response.json() as OpenAIResponse
-    if (!response.ok) throw new Error(payload.error?.message??'Falha ao consultar a IA')
-    const call = payload.output?.find(item=>item.type==='function_call'&&item.name)
-    if (call?.name && call.arguments) {
-      const proposal: ProposedAction = { name:call.name, arguments:JSON.parse(call.arguments) as Record<string,unknown> }
-      const labels: Record<ToolName,string>={create_task:'registrar esta tarefa na agenda',create_note:'salvar esta anotação',create_transaction:'registrar esta transação',update_book_progress:'atualizar o progresso de leitura'}
-      const content=`Posso ${labels[proposal.name]}. Confirme para eu alterar seus dados.`
-      const { data: message, error } = await ctx.supabase.from('ai_messages').insert({user_id:ctx.user.id,conversation_id:conversationId,role:'assistant',content,sources:sources as Json,proposed_action:proposal as unknown as Json,action_status:'pending'}).select('id').single()
-      if (error) throw error
-      return NextResponse.json({answer:content,sources,conversationId,proposal,messageId:message.id})
-    }
-    const answer=payload.output?.flatMap(item=>item.content??[]).filter(item=>item.type==='output_text').map(item=>item.text??'').join('\n').trim()
-    if(!answer)throw new Error('A IA não retornou uma resposta.')
-    await ctx.supabase.from('ai_messages').insert({user_id:ctx.user.id,conversation_id:conversationId,role:'assistant',content:answer,sources:sources as Json})
-    await ctx.supabase.from('ai_conversations').update({updated_at:new Date().toISOString()}).eq('id',conversationId).eq('user_id',ctx.user.id)
-    await ctx.supabase.from('ai_audit_log').insert({user_id:ctx.user.id,channel:'web',action:'chat_response',metadata:{model:process.env.OPENAI_MODEL??'gpt-5.6-luna',sources}})
-    return NextResponse.json({answer,sources,conversationId})
+    return NextResponse.json({ answer: result.answer, sources: result.sources, conversationId: result.conversationId, proposal: result.proposal, messageId: result.messageId })
   } catch(error) {
     return NextResponse.json({error:error instanceof Error?error.message:'Pri indisponível'},{status:500})
   }

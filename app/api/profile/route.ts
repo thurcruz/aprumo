@@ -38,6 +38,9 @@ export async function GET() {
         avatar_url: data.avatar_url ?? null,
         timezone: data.timezone ?? null,
         notification_prefs: data.notification_prefs ?? null,
+        // A vinculação em si não passa por aqui: é a rota /api/whatsapp/link,
+        // que exige prova de posse do número (o código recebido no WhatsApp).
+        whatsapp_phone_e164: data.whatsapp_phone_e164 ?? null,
       },
       email: context.user.email ?? null,
     })

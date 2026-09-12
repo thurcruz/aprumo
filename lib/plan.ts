@@ -1,36 +1,44 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { Plan } from './billing'
 
-export type Plan = 'free' | 'plus'
+export type { Plan }
 
 export interface PlanState {
   plan: Plan
+  /** Créditos restantes no ciclo. Zerar não tira o Plus — só impede novas mensagens da Pri até renovar ou comprar mais. */
   balance: number
-  checkoutUrl: string | null
-  checkoutEmail: string | null
+  renewsAt: string | null
+  cancelAtPeriodEnd: boolean
+  priceMonthlyCents: number
+  priceAnnualCents: number
   loading: boolean
 }
 
-/**
- * Aprumo+ é baseado em créditos (Cakto). Não existe uma flag booleana de
- * assinatura no perfil, então tratamos um saldo de créditos positivo como
- * acesso Aprumo+ ativo — o melhor sinal disponível hoje. Degrada para 'free'
- * quando offline ou sem backend.
- */
+const initial: PlanState = { plan: 'free', balance: 0, renewsAt: null, cancelAtPeriodEnd: false, priceMonthlyCents: 2490, priceAnnualCents: 14990, loading: true }
+
+/** Aprumo+ é uma assinatura de verdade (Stripe) — o plano vem do status guardado em `subscriptions`, não de saldo. */
 export function usePlan(): PlanState {
-  const [state, setState] = useState<PlanState>({ plan: 'free', balance: 0, checkoutUrl: null, checkoutEmail: null, loading: true })
+  const [state, setState] = useState<PlanState>(initial)
   useEffect(() => {
     let active = true
     fetch('/api/billing', { cache: 'no-store' })
       .then(response => (response.ok ? response.json() : null))
-      .then((data: { balance?: number; checkoutUrl?: string | null; checkoutEmail?: string | null } | null) => {
+      .then((data: Partial<PlanState> | null) => {
         if (!active) return
-        if (!data) { setState(previous => ({ ...previous, loading: false })); return }
-        const balance = Number(data.balance ?? 0)
-        setState({ plan: balance > 0 ? 'plus' : 'free', balance, checkoutUrl: data.checkoutUrl ?? null, checkoutEmail: data.checkoutEmail ?? null, loading: false })
+        if (!data) { setState(current => ({ ...current, loading: false })); return }
+        setState({
+          plan: data.plan === 'plus' ? 'plus' : 'free',
+          balance: Number(data.balance ?? 0),
+          renewsAt: data.renewsAt ?? null,
+          cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),
+          priceMonthlyCents: Number(data.priceMonthlyCents ?? initial.priceMonthlyCents),
+          priceAnnualCents: Number(data.priceAnnualCents ?? initial.priceAnnualCents),
+          loading: false,
+        })
       })
-      .catch(() => { if (active) setState(previous => ({ ...previous, loading: false })) })
+      .catch(() => { if (active) setState(current => ({ ...current, loading: false })) })
     return () => { active = false }
   }, [])
   return state
