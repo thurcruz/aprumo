@@ -60,6 +60,9 @@ export interface Task {
   frequency?: HabitFrequency
   /** Hábito de treino: abre esta ficha. No banco, mora no jsonb `frequency`. */
   workoutPlanId?: string
+  /** Fase de um plano pronto (lib/routine-plans.ts). Também mora no jsonb `frequency`. */
+  routinePlanId?: string
+  routinePlanSlug?: string
 }
 
 export type TaskEventStatus = 'pending' | 'completed' | 'skipped' | 'carried'

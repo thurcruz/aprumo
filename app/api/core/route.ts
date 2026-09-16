@@ -38,24 +38,36 @@ function frequencyFromDb(value: unknown): HabitFrequency | undefined {
 const isUuid = (value: unknown): value is string =>
   typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 
+const isSlug = (value: unknown): value is string => typeof value === 'string' && /^[a-z0-9-]{1,40}$/.test(value)
+
 /**
  * Além da recorrência, o jsonb guarda a ficha que um hábito de treino abre
- * (`workoutPlanId`). Não há coluna própria: mora aqui por ser configuração do
- * hábito e por dispensar migração.
+ * (`workoutPlanId`) e o plano pronto de onde a fase veio (`routinePlanId`,
+ * `routinePlanSlug`). Não há coluna própria: moram aqui por serem
+ * configuração do hábito e por dispensarem migração.
  */
-function frequencyToDb(frequency: HabitFrequency | undefined, workoutPlanId?: string): Json {
+function frequencyToDb(frequency: HabitFrequency | undefined, links: Pick<Task, 'workoutPlanId' | 'routinePlanId' | 'routinePlanSlug'> = {}): Json {
   const valid = frequencyFromDb(frequency)
   const row: { [key: string]: Json | undefined } = {}
   if (valid?.days) row.days = valid.days
   if (valid?.startsOn) row.startsOn = valid.startsOn
   if (valid?.endsOn) row.endsOn = valid.endsOn
-  if (isUuid(workoutPlanId)) row.workoutPlanId = workoutPlanId
+  if (isUuid(links.workoutPlanId)) row.workoutPlanId = links.workoutPlanId
+  if (isUuid(links.routinePlanId) && isSlug(links.routinePlanSlug)) {
+    row.routinePlanId = links.routinePlanId
+    row.routinePlanSlug = links.routinePlanSlug
+  }
   return row as Json
 }
 
 function workoutPlanFromDb(value: unknown): string | undefined {
   const id = value && typeof value === 'object' ? (value as { workoutPlanId?: unknown }).workoutPlanId : undefined
   return isUuid(id) ? id : undefined
+}
+
+function routinePlanFromDb(value: unknown): Pick<Task, 'routinePlanId' | 'routinePlanSlug'> {
+  const raw = value && typeof value === 'object' ? value as { routinePlanId?: unknown; routinePlanSlug?: unknown } : {}
+  return isUuid(raw.routinePlanId) && isSlug(raw.routinePlanSlug) ? { routinePlanId: raw.routinePlanId, routinePlanSlug: raw.routinePlanSlug } : {}
 }
 
 async function context() {
@@ -88,7 +100,7 @@ export async function GET() {
     const periodEvents=allEvents.filter(event=>event.scheduled_for>=periodStart&&event.scheduled_for<=today)
     const eventMap = new Map(allEvents.filter(event=>event.scheduled_for===today).map(event=>[event.commitment_id,event]))
     const taskEvents: TaskEvent[] = allEvents.map(event=>({taskId:event.commitment_id,date:event.scheduled_for,status:(event.status as TaskEvent['status']),completedAt:event.completed_at??undefined}))
-    const tasks: Task[] = (commitmentsResult.data??[]).map(row=>{const event=eventMap.get(row.id);return {id:row.id,title:row.title,category:categoryFromDb[row.category]??'hoje',completed:event?.status==='completed',completedAt:event?.completed_at??undefined,createdAt:row.created_at,goalId:row.goal_id??undefined,scheduledDate:row.scheduled_date??undefined,startTime:row.start_time?.slice(0,5)??undefined,durationMinutes:row.duration_minutes??undefined,dayBlock:blockFromDb[row.day_block]??'livre',priority:(row.priority as TaskPriority)??2,source:(allowedSources.includes(row.source as TaskSource)?row.source as TaskSource:'manual'),frequency:frequencyFromDb(row.frequency),workoutPlanId:workoutPlanFromDb(row.frequency)}})
+    const tasks: Task[] = (commitmentsResult.data??[]).map(row=>{const event=eventMap.get(row.id);return {id:row.id,title:row.title,category:categoryFromDb[row.category]??'hoje',completed:event?.status==='completed',completedAt:event?.completed_at??undefined,createdAt:row.created_at,goalId:row.goal_id??undefined,scheduledDate:row.scheduled_date??undefined,startTime:row.start_time?.slice(0,5)??undefined,durationMinutes:row.duration_minutes??undefined,dayBlock:blockFromDb[row.day_block]??'livre',priority:(row.priority as TaskPriority)??2,source:(allowedSources.includes(row.source as TaskSource)?row.source as TaskSource:'manual'),frequency:frequencyFromDb(row.frequency),workoutPlanId:workoutPlanFromDb(row.frequency),...routinePlanFromDb(row.frequency)}})
     const completedDates=new Set(periodEvents.filter(event=>event.status==='completed').map(event=>event.scheduled_for));let streak=0;for(let offset=0;offset<30;offset++){const date=new Date(Date.now()-offset*86400000).toISOString().slice(0,10);if(completedDates.has(date))streak++;else if(offset>0)break}
     const metrics={streak,completedCommitments:periodEvents.filter(event=>event.status==='completed').length,totalCommitments:periodEvents.length,carriedCommitments:periodEvents.filter(event=>event.status==='carried').length,completedGoals:(goalsResult.data??[]).filter(goal=>goal.status==='completed'||goal.progress===100).length,periodDays:30,lifetimeCompleted:lifetimeResult.count??0}
     return NextResponse.json({goals,tasks,taskEvents,metrics})
@@ -99,8 +111,8 @@ export async function POST(request:Request) {
   try {
     const ctx=await context(); if(!ctx)return NextResponse.json({error:'Não autenticado'},{status:401})
     const body=await request.json() as {action?:string;task?:Task;goal?:Goal;id?:string;eventDate?:string}
-    if(body.action==='addTask'&&body.task){const task=body.task;if(!task.title.trim()||task.title.length>160)return NextResponse.json({error:'Tarefa inválida'},{status:400});const {error}=await ctx.supabase.from('commitments').insert({id:task.id,user_id:ctx.user.id,goal_id:task.goalId??null,title:task.title.trim(),kind:task.category==='fixa'?'habit':'task',category:categoryToDb[task.category],priority:task.priority??2,scheduled_date:task.scheduledDate??null,start_time:task.startTime??null,duration_minutes:task.durationMinutes??null,day_block:blockToDb[task.dayBlock??'livre'],source:allowedSources.includes(task.source as TaskSource)?task.source:'manual',frequency:frequencyToDb(task.frequency,task.workoutPlanId)});if(error)throw error}
-    else if(body.action==='updateTask'&&body.task){const task=body.task;const {error}=await ctx.supabase.from('commitments').update({title:task.title.trim(),goal_id:task.goalId??null,category:categoryToDb[task.category],scheduled_date:task.scheduledDate??null,start_time:task.startTime??null,duration_minutes:task.durationMinutes??null,day_block:blockToDb[task.dayBlock??'livre'],priority:task.priority??2,kind:task.category==='fixa'?'habit':'task',frequency:frequencyToDb(task.frequency,task.workoutPlanId),updated_at:new Date().toISOString()}).eq('id',task.id).eq('user_id',ctx.user.id);if(error)throw error;const eventDate=body.eventDate??task.scheduledDate??new Date().toISOString().slice(0,10);const {error:eventError}=await ctx.supabase.from('commitment_events').upsert({user_id:ctx.user.id,commitment_id:task.id,scheduled_for:eventDate,status:task.completed?'completed':'pending',completed_at:task.completed?(task.completedAt??new Date().toISOString()):null,updated_at:new Date().toISOString()},{onConflict:'commitment_id,scheduled_for'});if(eventError)throw eventError}
+    if(body.action==='addTask'&&body.task){const task=body.task;if(!task.title.trim()||task.title.length>160)return NextResponse.json({error:'Tarefa inválida'},{status:400});const {error}=await ctx.supabase.from('commitments').insert({id:task.id,user_id:ctx.user.id,goal_id:task.goalId??null,title:task.title.trim(),kind:task.category==='fixa'?'habit':'task',category:categoryToDb[task.category],priority:task.priority??2,scheduled_date:task.scheduledDate??null,start_time:task.startTime??null,duration_minutes:task.durationMinutes??null,day_block:blockToDb[task.dayBlock??'livre'],source:allowedSources.includes(task.source as TaskSource)?task.source:'manual',frequency:frequencyToDb(task.frequency,task)});if(error)throw error}
+    else if(body.action==='updateTask'&&body.task){const task=body.task;const {error}=await ctx.supabase.from('commitments').update({title:task.title.trim(),goal_id:task.goalId??null,category:categoryToDb[task.category],scheduled_date:task.scheduledDate??null,start_time:task.startTime??null,duration_minutes:task.durationMinutes??null,day_block:blockToDb[task.dayBlock??'livre'],priority:task.priority??2,kind:task.category==='fixa'?'habit':'task',frequency:frequencyToDb(task.frequency,task),updated_at:new Date().toISOString()}).eq('id',task.id).eq('user_id',ctx.user.id);if(error)throw error;const eventDate=body.eventDate??task.scheduledDate??new Date().toISOString().slice(0,10);const {error:eventError}=await ctx.supabase.from('commitment_events').upsert({user_id:ctx.user.id,commitment_id:task.id,scheduled_for:eventDate,status:task.completed?'completed':'pending',completed_at:task.completed?(task.completedAt??new Date().toISOString()):null,updated_at:new Date().toISOString()},{onConflict:'commitment_id,scheduled_for'});if(eventError)throw eventError}
     else if(body.action==='carryTask'&&body.task){
       // "Não consegui hoje": registra o evento como adiado (carried) em vez de
       // falha, incrementa o contador de repasses e reprograma o compromisso.
