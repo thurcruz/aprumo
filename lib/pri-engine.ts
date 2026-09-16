@@ -10,9 +10,51 @@ type OpenAIResponse = { output?: Array<{ type?: string; name?: ToolName; argumen
 /** De onde a mensagem chegou — molda o que fica registrado em ai_audit_log, nada além disso. */
 export type PriChannel = 'web' | 'whatsapp'
 
+export type PriGateCode = 'plan_required' | 'insufficient_credits' | 'rate_limited'
+
 export type PriResult =
   | { ok: true; answer: string; conversationId: string; sources: string[]; proposal?: ProposedAction; messageId?: string }
-  | { ok: false; error: string; code?: 'plan_required' | 'insufficient_credits' | 'rate_limited' }
+  | { ok: false; error: string; code?: PriGateCode }
+
+export const PRI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-5.6-luna'
+
+/**
+ * O pedágio de toda chamada à Pri — conversa, plano adaptado ou o que vier:
+ * confere a assinatura, registra a tentativa no limite de taxa e gasta o
+ * crédito, nessa ordem. Não desconta de quem só esbarrou no limite, e cobra
+ * antes da IA (mais simples e mais seguro contra corrida entre pedidos
+ * simultâneos do que cobrar só no sucesso).
+ */
+export async function chargePri(params: {
+  supabase: SupabaseClient<Database>
+  userId: string
+  channel: PriChannel
+  description: string
+}): Promise<{ ok: true } | { ok: false; error: string; code: PriGateCode }> {
+  const { supabase, userId, channel, description } = params
+
+  // A Pri é 100% Aprumo+: sem assinatura ativa, nem a primeira mensagem sai.
+  const { data: subscription } = await supabase.from('subscriptions').select('status')
+    .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (resolvePlan(subscription?.status as SubscriptionStatus | undefined) !== 'plus') {
+    return { ok: false, error: 'A Pri é exclusiva do Aprumo+. Assine para conversar.', code: 'plan_required' }
+  }
+
+  // Atômico via lock de linha (pri_register_attempt): duas mensagens simultâneas não passam juntas pelo limite.
+  const { data: rateLimit, error: rateLimitError } = await supabase.rpc('pri_register_attempt', { p_user_id: userId })
+  if (rateLimitError) throw rateLimitError
+  if (!rateLimit?.[0]?.allowed) return { ok: false, error: 'Limite temporário atingido. Tente novamente em alguns minutos.', code: 'rate_limited' }
+
+  // Web usa auth.uid() (sessão); WhatsApp informa o usuário à parte.
+  const { error: spendError } = channel === 'whatsapp'
+    ? await supabase.rpc('spend_credits_for', { p_user_id: userId, p_amount: CREDITS_PER_MESSAGE, p_description: description })
+    : await supabase.rpc('spend_credits', { p_amount: CREDITS_PER_MESSAGE, p_description: description })
+  if (spendError) {
+    if (spendError.message.includes('INSUFFICIENT_CREDITS')) return { ok: false, error: 'Seus créditos deste ciclo acabaram.', code: 'insufficient_credits' }
+    throw spendError
+  }
+  return { ok: true }
+}
 
 const TOOLS = [
   { type: 'function', name: 'create_task', description: 'Propõe criar uma tarefa, hábito ou compromisso na agenda do usuário.', strict: true, parameters: { type: 'object', properties: { title: { type: 'string' }, category: { type: 'string', enum: ['fixed', 'today', 'carryover'] }, scheduled_date: { type: ['string', 'null'] }, start_time: { type: ['string', 'null'] }, duration_minutes: { type: 'number' } }, required: ['title', 'category', 'scheduled_date', 'start_time', 'duration_minutes'], additionalProperties: false } },
@@ -48,27 +90,8 @@ export async function answerPri(params: {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return { ok: false, error: 'Configure OPENAI_API_KEY no servidor.' }
 
-  // A Pri é 100% Aprumo+: sem assinatura ativa, nem a primeira mensagem sai.
-  const { data: subscription } = await supabase.from('subscriptions').select('status')
-    .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle()
-  if (resolvePlan(subscription?.status as SubscriptionStatus | undefined) !== 'plus') {
-    return { ok: false, error: 'A Pri é exclusiva do Aprumo+. Assine para conversar.', code: 'plan_required' }
-  }
-
-  const { data: recent } = await supabase.from('ai_audit_log').select('id').eq('user_id', userId).gte('created_at', new Date(Date.now() - 3600000).toISOString())
-  if ((recent?.length ?? 0) >= 20) return { ok: false, error: 'Limite temporário atingido. Tente novamente em alguns minutos.', code: 'rate_limited' }
-
-  // Gasta o crédito antes de chamar a OpenAI: depois do limite de taxa (não
-  // descontar de quem só esbarrou nele) e antes da IA (mais simples e mais
-  // seguro contra corrida entre pedidos simultâneos do que cobrar só no
-  // sucesso). Web usa auth.uid() (sessão); WhatsApp informa o usuário à parte.
-  const { error: spendError } = channel === 'whatsapp'
-    ? await supabase.rpc('spend_credits_for', { p_user_id: userId, p_amount: CREDITS_PER_MESSAGE, p_description: 'Mensagem para a Pri (WhatsApp)' })
-    : await supabase.rpc('spend_credits', { p_amount: CREDITS_PER_MESSAGE, p_description: 'Mensagem para a Pri' })
-  if (spendError) {
-    if (spendError.message.includes('INSUFFICIENT_CREDITS')) return { ok: false, error: 'Seus créditos deste ciclo acabaram.', code: 'insufficient_credits' }
-    throw spendError
-  }
+  const gate = await chargePri({ supabase, userId, channel, description: channel === 'whatsapp' ? 'Mensagem para a Pri (WhatsApp)' : 'Mensagem para a Pri' })
+  if (!gate.ok) return gate
 
   let conversationId = params.conversationId ?? undefined
   if (!conversationId) {
@@ -104,7 +127,7 @@ export async function answerPri(params: {
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST', headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model: process.env.OPENAI_MODEL ?? 'gpt-5.6-luna', reasoning: { effort: 'low' }, max_output_tokens: 700, store: false, tools: TOOLS, instructions: 'Você é a Pri, copiloto de evolução pessoal. Responda em português do Brasil. Use apenas o contexto autorizado. Para registrar ou alterar dados, use exatamente uma ferramenta; nunca afirme que gravou algo. A aplicação solicitará confirmação antes de executar. Em perguntas sobre o que falta hoje, exclua status_today completed. Datas e horários devem usar o fuso informado. Não diagnostique nem dê aconselhamento financeiro profissional.', input }),
+    body: JSON.stringify({ model: PRI_MODEL, reasoning: { effort: 'low' }, max_output_tokens: 700, store: false, tools: TOOLS, instructions: 'Você é a Pri, copiloto de evolução pessoal. Responda em português do Brasil. Use apenas o contexto autorizado. Para registrar ou alterar dados, use exatamente uma ferramenta; nunca afirme que gravou algo. A aplicação solicitará confirmação antes de executar. Em perguntas sobre o que falta hoje, exclua status_today completed. Datas e horários devem usar o fuso informado. Não diagnostique nem dê aconselhamento financeiro profissional.', input }),
   })
   const payload = await response.json() as OpenAIResponse
   if (!response.ok) throw new Error(payload.error?.message ?? 'Falha ao consultar a IA')
@@ -122,6 +145,6 @@ export async function answerPri(params: {
   if (!answer) throw new Error('A IA não retornou uma resposta.')
   await supabase.from('ai_messages').insert({ user_id: userId, conversation_id: conversationId, role: 'assistant', content: answer, sources: sources as Json })
   await supabase.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', conversationId).eq('user_id', userId)
-  await supabase.from('ai_audit_log').insert({ user_id: userId, channel, action: 'chat_response', metadata: { model: process.env.OPENAI_MODEL ?? 'gpt-5.6-luna', sources } })
+  await supabase.from('ai_audit_log').insert({ user_id: userId, channel, action: 'chat_response', metadata: { model: PRI_MODEL, sources } })
   return { ok: true, answer, conversationId, sources }
 }
