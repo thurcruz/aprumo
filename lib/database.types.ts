@@ -343,6 +343,199 @@ export type Database = {
           },
         ]
       }
+      challenge_checkins: {
+        Row: {
+          challenge_id: string
+          created_at: string
+          day_number: number
+          id: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          created_at?: string
+          day_number: number
+          id?: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          created_at?: string
+          day_number?: number
+          id?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_checkins_user_id_challenge_id_fkey"
+            columns: ["user_id", "challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenge_participants"
+            referencedColumns: ["user_id", "challenge_id"]
+          },
+        ]
+      }
+      challenge_participants: {
+        Row: {
+          challenge_id: string
+          completed_at: string | null
+          id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          completed_at?: string | null
+          id?: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          completed_at?: string | null
+          id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_participants_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenge_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenges: {
+        Row: {
+          active: boolean
+          cover_url: string | null
+          created_at: string
+          description: string
+          duration_days: number
+          ends_on: string | null
+          id: string
+          official: boolean
+          slug: string
+          starts_on: string | null
+          title: string
+        }
+        Insert: {
+          active?: boolean
+          cover_url?: string | null
+          created_at?: string
+          description?: string
+          duration_days: number
+          ends_on?: string | null
+          id?: string
+          official?: boolean
+          slug: string
+          starts_on?: string | null
+          title: string
+        }
+        Update: {
+          active?: boolean
+          cover_url?: string | null
+          created_at?: string
+          description?: string
+          duration_days?: number
+          ends_on?: string | null
+          id?: string
+          official?: boolean
+          slug?: string
+          starts_on?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
+      circle_members: {
+        Row: {
+          circle_id: string
+          id: string
+          joined_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          circle_id: string
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          circle_id?: string
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_members_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "circles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "circle_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circles: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          name: string
+          owner_id: string
+          tag: string
+          visibility: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          owner_id: string
+          tag?: string
+          visibility?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          tag?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circles_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commitment_events: {
         Row: {
           carried_to: string | null
@@ -1084,6 +1277,10 @@ export type Database = {
       spend_credits_for: {
         Args: { p_user_id: string; p_amount: number; p_description?: string | null }
         Returns: { balance: number }[]
+      }
+      pri_register_attempt: {
+        Args: { p_user_id: string; p_limit?: number; p_window_seconds?: number }
+        Returns: { allowed: boolean; count_in_window: number }[]
       }
     }
     Enums: {
