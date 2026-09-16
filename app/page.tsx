@@ -10,7 +10,7 @@ const pillars = [
 export default function HomePage() {
   return <main className="marketing-page overflow-hidden">
     <nav className="marketing-nav">
-      <Link href="/" className="brand-mark"><span>A</span><strong>Aprumo</strong></Link>
+      <Link href="/" className="brand-mark"><img src="/APRUMO_ICONE_AMARELO_MONO.png" alt="" width={30} height={30}/><strong>Aprumo</strong></Link>
       <div className="hidden items-center gap-8 md:flex"><a href="#sistema">O sistema</a><a href="#metodo">Como funciona</a><a href="#privacidade">Privacidade</a></div>
       <div className="flex items-center gap-3"><Link href="/login" className="nav-login">Entrar</Link><Link href="/cadastro" className="pill-cta hidden sm:flex">Começar agora <ArrowRight size={15}/></Link></div>
     </nav>
@@ -39,6 +39,6 @@ export default function HomePage() {
       <div className="pillar-grid">{pillars.map(({icon: Icon, ...item}) => <article key={item.number} className="pillar-card"><div className="pillar-number">{item.number}</div><span className="pillar-icon"><Icon size={22}/></span><h3>{item.title}</h3><p>{item.text}</p><div className="card-line"/></article>)}</div>
     </section>
     <section id="metodo" className="manifesto-section"><div><p className="section-label">A jornada Aprumo</p><h2>Entender. Decidir.<br/>Agir. Medir. <em>Evoluir.</em></h2></div><div className="manifesto-copy"><p>Você não precisa virar outra pessoa para começar. Precisa de um sistema que entenda quem você é hoje e ajude a construir quem deseja ser.</p><Link href="/cadastro">Começar minha evolução <ArrowRight size={17}/></Link></div></section>
-    <footer id="privacidade" className="marketing-footer"><div className="brand-mark"><span>A</span><strong>Aprumo</strong></div><p>Privado por padrão. Feito para a sua evolução.</p><p>© 2026 Aprumo</p></footer>
+    <footer id="privacidade" className="marketing-footer"><div className="brand-mark"><img src="/APRUMO_ICONE_AMARELO_MONO.png" alt="" width={30} height={30}/><strong>Aprumo</strong></div><p>Privado por padrão. Feito para a sua evolução.</p><p>© 2026 Aprumo</p></footer>
   </main>
 }
