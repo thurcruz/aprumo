@@ -69,7 +69,9 @@ async function loadProfile(): Promise<{ userName?: string; purpose?: string } | 
 
 function saveProfile(payload: { displayName?: string; purpose?: string }) {
   if (!BACKEND_ENABLED) return
-  void fetch('/api/profile', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => undefined)
+  void fetch('/api/profile', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
+    .then((response) => { if (!response.ok) throw new Error(String(response.status)) })
+    .catch((error) => console.error('[aprumo-store] falha ao salvar perfil', error))
 }
 
 async function loadCoreDomains(): Promise<Pick<AprumoStore, 'goals' | 'tasks' | 'taskEvents' | 'metrics'> | null> {
@@ -81,7 +83,10 @@ async function loadCoreDomains(): Promise<Pick<AprumoStore, 'goals' | 'tasks' | 
 
 async function syncCore(action: string, payload: { task?: Task; goal?: Goal; id?: string; eventDate?: string }) {
   if (!BACKEND_ENABLED) return
-  await fetch('/api/core', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...payload }) })
+  try {
+    const response = await fetch('/api/core', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...payload }) })
+    if (!response.ok) throw new Error(String(response.status))
+  } catch (error) { console.error(`[aprumo-store] falha ao sincronizar core:${action}`, error) }
 }
 
 type DomainState = Pick<AprumoStore, 'moods'|'books'|'notes'|'transactions'|'financialGoals'|'addictions'|'workouts'|'workoutLogs'|'repertoire'|'sleep'|'focusSessions'>
@@ -90,7 +95,13 @@ async function loadDomains(): Promise<DomainState | null> {
   const response = await fetch('/api/domains', { cache: 'no-store' })
   return response.ok ? response.json() as Promise<DomainState> : null
 }
-async function syncDomain(action:string,payload:Record<string,unknown>){if(!BACKEND_ENABLED)return;await fetch('/api/domains',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,...payload})})}
+async function syncDomain(action:string,payload:Record<string,unknown>){
+  if(!BACKEND_ENABLED)return
+  try {
+    const response = await fetch('/api/domains',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,...payload})})
+    if (!response.ok) throw new Error(String(response.status))
+  } catch (error) { console.error(`[aprumo-store] falha ao sincronizar domains:${action}`, error) }
+}
 
 export function useAprumoStore() {
   const [store, setStore] = useState<AprumoStore>(initialData)
@@ -143,8 +154,7 @@ export function useAprumoStore() {
         tasks: isToday ? s.tasks.map((t) => (t.id === task.id ? { ...t, completed: done, completedAt } : t)) : s.tasks,
       }
     })
-    void syncCore('updateTask', { task: { ...task, completed: done, completedAt }, eventDate: date }).catch(() => undefined)
-  }, [update])
+    void syncCore('updateTask', { task: { ...task, completed: done, completedAt }, eventDate: date })  }, [update])
 
   /**
    * "Não consegui hoje": adia para o dia seguinte ao que está sendo visto, sem
@@ -160,40 +170,39 @@ export function useAprumoStore() {
       tasks: s.tasks.map((t) => (t.id === task.id ? next : t)),
       taskEvents: [...s.taskEvents.filter((item) => !(item.taskId === task.id && item.date === from)), { taskId: task.id, date: from, status: 'carried' as const }],
     }))
-    void syncCore('carryTask', { task, eventDate: from }).catch(() => undefined)
-  }, [update])
+    void syncCore('carryTask', { task, eventDate: from })  }, [update])
 
   const addGoal = useCallback((goal: Goal) => { update((s) => ({ ...s, goals: [...s.goals, goal] })); void syncCore('addGoal', { goal }).catch(() => undefined) }, [update])
   const updateGoal = useCallback((goal: Goal) => { update((s) => ({ ...s, goals: s.goals.map((g) => (g.id === goal.id ? goal : g)) })); void syncCore('updateGoal', { goal }).catch(() => undefined) }, [update])
   const deleteGoal = useCallback((id: string) => { update((s) => ({ ...s, goals: s.goals.filter((g) => g.id !== id) })); void syncCore('deleteGoal', { id }).catch(() => undefined) }, [update])
 
-  const addTransaction = useCallback((tx: Transaction) => {update((s) => ({ ...s, transactions: [...s.transactions, tx] }));void syncDomain('addTransaction',{transaction:tx}).catch(()=>undefined)}, [update])
-  const deleteTransaction = useCallback((id: string) => {update((s) => ({ ...s, transactions: s.transactions.filter((t) => t.id !== id) }));void syncDomain('deleteTransaction',{id}).catch(()=>undefined)}, [update])
+  const addTransaction = useCallback((tx: Transaction) => {update((s) => ({ ...s, transactions: [...s.transactions, tx] }));void syncDomain('addTransaction',{transaction:tx})}, [update])
+  const deleteTransaction = useCallback((id: string) => {update((s) => ({ ...s, transactions: s.transactions.filter((t) => t.id !== id) }));void syncDomain('deleteTransaction',{id})}, [update])
 
-  const addAddiction = useCallback((a: Addiction) => {update((s) => ({ ...s, addictions: [...s.addictions, a] }));void syncDomain('addAddiction',{addiction:a}).catch(()=>undefined)}, [update])
-  const updateAddiction = useCallback((a: Addiction) => {update((s) => ({ ...s, addictions: s.addictions.map((x) => (x.id === a.id ? a : x)) }));void syncDomain('updateAddiction',{addiction:a}).catch(()=>undefined)}, [update])
+  const addAddiction = useCallback((a: Addiction) => {update((s) => ({ ...s, addictions: [...s.addictions, a] }));void syncDomain('addAddiction',{addiction:a})}, [update])
+  const updateAddiction = useCallback((a: Addiction) => {update((s) => ({ ...s, addictions: s.addictions.map((x) => (x.id === a.id ? a : x)) }));void syncDomain('updateAddiction',{addiction:a})}, [update])
 
-  const updateWorkout = useCallback((w: WorkoutPlan) => {update((s) => ({ ...s, workouts: s.workouts.map((x) => (x.id === w.id ? w : x)) }));void syncDomain('updateWorkout',{workout:w}).catch(()=>undefined)}, [update])
-  const addWorkout = useCallback((w: WorkoutPlan) => {update((s) => ({ ...s, workouts: [...s.workouts, w] }));void syncDomain('addWorkout',{workout:w}).catch(()=>undefined)}, [update])
+  const updateWorkout = useCallback((w: WorkoutPlan) => {update((s) => ({ ...s, workouts: s.workouts.map((x) => (x.id === w.id ? w : x)) }));void syncDomain('updateWorkout',{workout:w})}, [update])
+  const addWorkout = useCallback((w: WorkoutPlan) => {update((s) => ({ ...s, workouts: [...s.workouts, w] }));void syncDomain('addWorkout',{workout:w})}, [update])
 
   /** Excluir tira a ficha da lista; o histórico de treinos feitos com ela fica. */
-  const deleteWorkout = useCallback((id: string) => {update((s) => ({ ...s, workouts: s.workouts.filter((x) => x.id !== id) }));void syncDomain('deleteWorkout',{id}).catch(()=>undefined)}, [update])
-  const saveWorkoutLog = useCallback((log: WorkoutLog) => {update((s) => ({ ...s, workoutLogs: [log, ...(s.workoutLogs ?? []).filter((x) => x.id !== log.id)] }));void syncDomain('addWorkoutLog',{workoutLog:log}).catch(()=>undefined)}, [update])
+  const deleteWorkout = useCallback((id: string) => {update((s) => ({ ...s, workouts: s.workouts.filter((x) => x.id !== id) }));void syncDomain('deleteWorkout',{id})}, [update])
+  const saveWorkoutLog = useCallback((log: WorkoutLog) => {update((s) => ({ ...s, workoutLogs: [log, ...(s.workoutLogs ?? []).filter((x) => x.id !== log.id)] }));void syncDomain('addWorkoutLog',{workoutLog:log})}, [update])
 
-  const addBook = useCallback((b: Book) => {update((s) => ({ ...s, books: [...s.books, b] }));void syncDomain('addBook',{book:b}).catch(()=>undefined)}, [update])
-  const updateBook = useCallback((b: Book) => {update((s) => ({ ...s, books: s.books.map((x) => (x.id === b.id ? b : x)) }));void syncDomain('updateBook',{book:b}).catch(()=>undefined)}, [update])
-  const deleteBook = useCallback((id: string) => {update((s) => ({ ...s, books: s.books.filter((b) => b.id !== id) }));void syncDomain('deleteBook',{id}).catch(()=>undefined)}, [update])
+  const addBook = useCallback((b: Book) => {update((s) => ({ ...s, books: [...s.books, b] }));void syncDomain('addBook',{book:b})}, [update])
+  const updateBook = useCallback((b: Book) => {update((s) => ({ ...s, books: s.books.map((x) => (x.id === b.id ? b : x)) }));void syncDomain('updateBook',{book:b})}, [update])
+  const deleteBook = useCallback((id: string) => {update((s) => ({ ...s, books: s.books.filter((b) => b.id !== id) }));void syncDomain('deleteBook',{id})}, [update])
 
-  const addNote = useCallback((n: Note) => {update((s) => ({ ...s, notes: [...s.notes, n] }));void syncDomain('addNote',{note:n}).catch(()=>undefined)}, [update])
-  const updateNote = useCallback((n: Note) => {update((s) => ({ ...s, notes: s.notes.map((x) => (x.id === n.id ? n : x)) }));void syncDomain('updateNote',{note:n}).catch(()=>undefined)}, [update])
-  const deleteNote = useCallback((id: string) => {update((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }));void syncDomain('deleteNote',{id}).catch(()=>undefined)}, [update])
+  const addNote = useCallback((n: Note) => {update((s) => ({ ...s, notes: [...s.notes, n] }));void syncDomain('addNote',{note:n})}, [update])
+  const updateNote = useCallback((n: Note) => {update((s) => ({ ...s, notes: s.notes.map((x) => (x.id === n.id ? n : x)) }));void syncDomain('updateNote',{note:n})}, [update])
+  const deleteNote = useCallback((id: string) => {update((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }));void syncDomain('deleteNote',{id})}, [update])
 
   const addMood = useCallback((m: MoodEntry) => update((s) => {
     const existing = s.moods.find((x) => new Date(x.date).toDateString() === new Date(m.date).toDateString())
     if (existing) return { ...s, moods: s.moods.map((x) => (x.id === existing.id ? m : x)) }
     return { ...s, moods: [...s.moods, m] }
   }), [update])
-  const saveMood = useCallback((m:MoodEntry)=>{addMood(m);void syncDomain('addMood',{mood:m}).catch(()=>undefined)},[addMood])
+  const saveMood = useCallback((m:MoodEntry)=>{addMood(m);void syncDomain('addMood',{mood:m})},[addMood])
 
   /** Nome e propósito só no aparelho — para quando o servidor já confirmou a gravação. */
   const applyProfile = useCallback((profile: { userName?: string; purpose?: string }) => update((s) => ({
@@ -203,10 +212,10 @@ export function useAprumoStore() {
   })), [update])
   const setPurpose = useCallback((p: string) => { update((s) => ({ ...s, purpose: p })); saveProfile({ purpose: p }) }, [update])
   const setUserName = useCallback((n: string) => { update((s) => ({ ...s, userName: n })); saveProfile({ displayName: n }) }, [update])
-  const addFinancialGoal = useCallback((fg: FinancialGoal) => {update((s) => ({ ...s, financialGoals: [...(s.financialGoals ?? []), fg] }));void syncDomain('addFinancialGoal',{financialGoal:fg}).catch(()=>undefined)}, [update])
-  const updateFinancialGoal = useCallback((fg: FinancialGoal) => {update((s) => ({ ...s, financialGoals: (s.financialGoals ?? []).map((x) => (x.id === fg.id ? fg : x)) }));void syncDomain('updateFinancialGoal',{financialGoal:fg}).catch(()=>undefined)}, [update])
+  const addFinancialGoal = useCallback((fg: FinancialGoal) => {update((s) => ({ ...s, financialGoals: [...(s.financialGoals ?? []), fg] }));void syncDomain('addFinancialGoal',{financialGoal:fg})}, [update])
+  const updateFinancialGoal = useCallback((fg: FinancialGoal) => {update((s) => ({ ...s, financialGoals: (s.financialGoals ?? []).map((x) => (x.id === fg.id ? fg : x)) }));void syncDomain('updateFinancialGoal',{financialGoal:fg})}, [update])
 
-  const deleteFinancialGoal = useCallback((id: string) => {update((s) => ({ ...s, financialGoals: (s.financialGoals ?? []).filter((x) => x.id !== id) }));void syncDomain('deleteFinancialGoal',{id}).catch(()=>undefined)}, [update])
+  const deleteFinancialGoal = useCallback((id: string) => {update((s) => ({ ...s, financialGoals: (s.financialGoals ?? []).filter((x) => x.id !== id) }));void syncDomain('deleteFinancialGoal',{id})}, [update])
 
   const addRepertoire = useCallback((item: RepertoireItem) => { update((s) => ({ ...s, repertoire: [item, ...(s.repertoire ?? [])] })); void syncDomain('addRepertoire', { repertoire: item }).catch(() => undefined) }, [update])
   const deleteRepertoire = useCallback((id: string) => { update((s) => ({ ...s, repertoire: (s.repertoire ?? []).filter((r) => r.id !== id) })); void syncDomain('deleteRepertoire', { id }).catch(() => undefined) }, [update])
@@ -216,8 +225,7 @@ export function useAprumoStore() {
       const existing = (s.sleep ?? []).find((x) => new Date(x.date).toDateString() === new Date(entry.date).toDateString())
       return existing ? { ...s, sleep: s.sleep.map((x) => (x.id === existing.id ? entry : x)) } : { ...s, sleep: [entry, ...(s.sleep ?? [])] }
     })
-    void syncDomain('addSleep', { sleep: entry }).catch(() => undefined)
-  }, [update])
+    void syncDomain('addSleep', { sleep: entry })  }, [update])
 
   const saveFocusSession = useCallback((session: FocusSession) => {
     update((s) => {
@@ -226,8 +234,7 @@ export function useAprumoStore() {
         ? { ...s, focusSessions: list.map((x) => (x.id === session.id ? session : x)) }
         : { ...s, focusSessions: [session, ...list] }
     })
-    void syncDomain('addFocusSession', { focusSession: session }).catch(() => undefined)
-  }, [update])
+    void syncDomain('addFocusSession', { focusSession: session })  }, [update])
 
   return {
     store,
