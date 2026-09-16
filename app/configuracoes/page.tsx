@@ -4,7 +4,7 @@ import { FormEvent, Suspense, useEffect, useMemo, useState, useSyncExternalStore
 import { useSearchParams } from 'next/navigation'
 import { readPreference, setPreference, subscribePreference, type ThemePreference } from '@/lib/theme'
 import Link from 'next/link'
-import { Bell, Bot, Check, ChevronRight, Clock3, CreditCard, Database, Download, Globe2, LockKeyhole, LogOut, Mail, MessageCircle, Moon, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react'
+import { AlertTriangle, Bell, Bot, Check, ChevronRight, Clock3, CreditCard, Database, Download, Globe2, LockKeyhole, LogOut, Mail, MessageCircle, Moon, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 
 interface BillingInfo {
@@ -243,6 +243,10 @@ function ConfiguracoesContent() {
           <div className="settings-panel-title"><span><Sparkles size={20}/></span><div><h2>Aprumo+</h2><p>Insights avançados e conversas com a Pri, na plataforma e no WhatsApp.</p></div></div>
           {checkoutNotice === 'cancelado' && <p className="mx-6.75 mt-2 text-sm" style={{ color: 'var(--muted)' }}>Checkout cancelado — nada foi cobrado.</p>}
           {billingError && <p className="mx-6.75 mt-2 text-sm" style={{ color: 'var(--danger)' }}>{billingError}</p>}
+          {billing?.status === 'past_due' && <div className="mx-6.75 mt-2 flex items-start gap-2.5 rounded-2xl border p-3 text-sm" style={{ borderColor: 'rgba(255,107,107,.35)', color: 'var(--danger)' }}>
+            <AlertTriangle size={16} className="mt-0.5 shrink-0"/>
+            <div><strong>A última cobrança falhou.</strong> Você continua com Aprumo+ por enquanto — o Stripe tenta cobrar de novo automaticamente, mas se preferir resolver agora, atualize a forma de pagamento no botão &quot;Gerenciar assinatura&quot; abaixo.</div>
+          </div>}
 
           {billing?.plan === 'plus'
             ? <div className="billing-balance"><div><small>{billing.cancelAtPeriodEnd ? 'ATIVA ATÉ' : 'PRÓXIMA COBRANÇA'}</small><strong style={{ fontSize: 22 }}>{billing.renewsAt ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long' }).format(new Date(billing.renewsAt)) : '—'}</strong><p>{billing.balance} {billing.balance === 1 ? 'crédito' : 'créditos'} restantes neste ciclo</p></div><CreditCard size={30}/></div>
@@ -250,7 +254,7 @@ function ConfiguracoesContent() {
 
           <div className="preference-list">
             {billing?.plan === 'plus' ? <>
-              <PreferenceRow title="Sua assinatura" description={billing.cancelAtPeriodEnd ? 'Cancelamento agendado para o fim do ciclo atual.' : 'Trocar cartão, ver recibos ou cancelar — tudo no portal do Stripe.'}>
+              <PreferenceRow title="Sua assinatura" description={billing.status === 'past_due' ? 'Atualize a forma de pagamento para não perder o acesso.' : billing.cancelAtPeriodEnd ? 'Cancelamento agendado para o fim do ciclo atual.' : 'Trocar cartão, ver recibos ou cancelar — tudo no portal do Stripe.'}>
                 <button className="text-action" onClick={openPortal} disabled={portalBusy}><Sparkles size={15}/> {portalBusy ? 'Abrindo…' : 'Gerenciar assinatura'}</button>
               </PreferenceRow>
               <PreferenceRow title="Créditos extras" description="Esbarrou no limite do mês? Compre um pacote avulso na hora, sem esperar o próximo ciclo.">

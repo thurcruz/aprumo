@@ -49,6 +49,20 @@ async function grantForInvoice(supabase: SupabaseAdmin, invoice: Stripe.Invoice)
   if (error) console.error('Stripe webhook: falha ao conceder créditos da renovação', error.message)
 }
 
+/**
+ * Marca a assinatura como `past_due` direto pela fatura que falhou, sem
+ * esperar `customer.subscription.updated` — a Stripe garante que todo evento
+ * chega ao menos uma vez, mas não garante a ordem entre eles.
+ */
+async function markPastDue(supabase: SupabaseAdmin, invoice: Stripe.Invoice) {
+  const line = invoice.lines.data[0]
+  if (!line?.subscription) return // fatura avulsa — sem assinatura para marcar
+  const subscriptionId = typeof line.subscription === 'string' ? line.subscription : line.subscription.id
+  const { error } = await supabase.from('subscriptions').update({ status: 'past_due', updated_at: new Date().toISOString() })
+    .eq('id', subscriptionId).neq('status', 'canceled') // não reabre uma assinatura já cancelada
+  if (error) console.error('Stripe webhook: falha ao marcar pagamento em atraso', error.message)
+}
+
 async function grantForTopup(supabase: SupabaseAdmin, session: Stripe.Checkout.Session) {
   const stripe = getStripe()
   const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 })
@@ -89,6 +103,9 @@ export async function POST(request: Request) {
         break
       case 'invoice.paid':
         await grantForInvoice(supabase, event.data.object)
+        break
+      case 'invoice.payment_failed':
+        await markPastDue(supabase, event.data.object)
         break
       case 'checkout.session.completed': {
         const session = event.data.object
