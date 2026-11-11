@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { Edit3, Plus, Target } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import PageHeader from '@/components/ui/PageHeader'
 import { useAprumoStore } from '@/lib/store'
 import type { Goal, GoalCategory } from '@/lib/types'
 import { deadlineState, goalConsistency, indexEvents, isDoneOn, isoDate } from '@/lib/utils'
@@ -24,7 +23,8 @@ const filters: { value: Filter; label: string }[] = [
   { value: 'conhecimento', label: 'Conhecimento' },
 ]
 
-export default function Metas() {
+/** Visão Metas do Hoje: o norte e os destinos com prazo. */
+export default function GoalsView() {
   const { store, setPurpose, addGoal, updateGoal, deleteGoal, addTask } = useAprumoStore()
   const today = isoDate(new Date())
   const events = useMemo(() => indexEvents(store.taskEvents), [store.taskEvents])
@@ -91,9 +91,11 @@ export default function Metas() {
     updateGoal({ ...goal, ...draft })
   }
 
-  return <div className="page-wrap">
-    <PageHeader back={{ href: '/hoje', label: 'Hoje' }} title="Metas" description="Direção antes de velocidade. Conecte quem você quer ser ao comportamento de hoje."
-      actions={<Button icon={<Plus size={17}/>} onClick={() => setCreating(true)}>Meta</Button>}/>
+  return <div>
+    <div className="mb-5 flex items-center justify-between gap-4">
+      <p className="text-body-s text-fg-2">Direção antes de velocidade. Conecte quem você quer ser ao comportamento de hoje.</p>
+      <Button icon={<Plus size={17}/>} onClick={() => setCreating(true)}>Meta</Button>
+    </div>
 
     <section className="surface relative p-6 md:p-8">
       <p className="eyebrow">Meu norte</p>

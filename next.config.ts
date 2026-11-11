@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
       { source: '/goat-ai', destination: '/pri', permanent: true },
       { source: '/apri', destination: '/pri', permanent: true },
       // Planos saíram da Comunidade e viraram destino próprio. Temporário (307): a casa dos planos já mudou antes.
+      // Hábitos, Agenda e Metas viraram visões do Hoje. A query (?dia=) segue junto.
+      { source: '/tarefas', destination: '/hoje?visao=habitos', permanent: false },
+      { source: '/agenda', destination: '/hoje?visao=agenda', permanent: false },
+      { source: '/metas', destination: '/hoje?visao=metas', permanent: false },
       { source: '/comunidade', has: [{ type: 'query', key: 'aba', value: 'planos' }], destination: '/planos', permanent: false },
     ];
   },

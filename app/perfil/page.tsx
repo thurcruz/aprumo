@@ -150,7 +150,7 @@ export default function PerfilPage() {
 
   const a = evolution?.areas
   const areaCards: { href: string; label: string; icon: LucideIcon; value: string; detail?: string; trend: Trend; unit?: string }[] = a ? [
-    { href: '/tarefas', label: 'Hábitos', icon: CheckSquare, value: a.consistency.current === null ? '—' : `${a.consistency.current}%`, detail: 'do que era devido foi cumprido', trend: a.consistency, unit: ' pontos' },
+    { href: '/hoje?visao=habitos', label: 'Hábitos', icon: CheckSquare, value: a.consistency.current === null ? '—' : `${a.consistency.current}%`, detail: 'do que era devido foi cumprido', trend: a.consistency, unit: ' pontos' },
     { href: '/foco', label: 'Foco', icon: Timer, value: `${a.focusMinutes.current ?? 0} min`, detail: 'em sessões concluídas', trend: a.focusMinutes, unit: ' min' },
     { href: '/treino', label: 'Treino', icon: Dumbbell, value: `${a.workouts.current ?? 0} ${a.workouts.current === 1 ? 'treino' : 'treinos'}`, detail: a.volumeKg.current ? `${a.volumeKg.current.toLocaleString('pt-BR')} kg levantados` : undefined, trend: a.workouts },
     { href: '/mente', label: 'Mente', icon: BookOpen, value: `${a.booksFinished.current ?? 0} ${a.booksFinished.current === 1 ? 'livro' : 'livros'}`, detail: 'terminados', trend: a.booksFinished },

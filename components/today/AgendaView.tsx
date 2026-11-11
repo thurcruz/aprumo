@@ -1,14 +1,12 @@
 'use client'
 
-import { Suspense, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Plus, Repeat2, Timer } from 'lucide-react'
 import { focusHref } from '@/lib/focus'
 import Button from '@/components/ui/Button'
 import Chip from '@/components/ui/Chip'
 import FieldLabel from '@/components/ui/FieldLabel'
-import PageHeader from '@/components/ui/PageHeader'
 import Sheet from '@/components/ui/Sheet'
 import { useAprumoStore } from '@/lib/store'
 import type { DayBlock, Task } from '@/lib/types'
@@ -20,14 +18,13 @@ type View = 'semana' | 'mes'
 /** Ordena por horário; o que não tem hora marcada vai para o fim do dia. */
 const byTime = (a: Task, b: Task) => (a.startTime ?? '99:99').localeCompare(b.startTime ?? '99:99')
 
-function AgendaContent() {
-  const params = useSearchParams()
+/** Visão Agenda do Hoje: semana ou mês, e o que acontece no dia escolhido. */
+export default function AgendaView({ initialDay }: { initialDay?: string }) {
   const { store, addTask, setTaskDone } = useAprumoStore()
   const today = iso(new Date())
   const [view, setView] = useState<View>('semana')
   const [selected, setSelected] = useState(() => {
-    const requested = params.get('dia')
-    return requested && /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : today
+    return initialDay && /^\d{4}-\d{2}-\d{2}$/.test(initialDay) ? initialDay : today
   })
   const [cursor, setCursor] = useState(() => parse(selected))
   const [open, setOpen] = useState(false)
@@ -89,11 +86,9 @@ function AgendaContent() {
     ? `${week[0].getDate()} – ${week[6].getDate()} de ${new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(week[6])}`
     : new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(cursor))
 
-  return <div className="page-wrap">
-    <PageHeader back={{ href: '/hoje', label: 'Hoje' }} title="Agenda" description="Tarefas, hábitos e compromissos organizados no mesmo lugar."
-      actions={<Button icon={<Plus size={17}/>} onClick={() => setOpen(true)}>Agendar</Button>}/>
-
+  return <div>
     <section className="flex flex-wrap items-center gap-3">
+      <Button icon={<Plus size={17}/>} onClick={() => setOpen(true)}>Agendar</Button>
       <div className="flex gap-1 rounded-full border p-1" style={{ borderColor: 'var(--line)' }}>
         {(['semana', 'mes'] as View[]).map(item => <button key={item} onClick={() => setView(item)}
           className="rounded-full px-4 py-1.5 text-sm font-semibold capitalize transition"
@@ -186,11 +181,7 @@ function AgendaContent() {
           {item === 'manha' ? 'Manhã' : item === 'livre' ? 'Sem horário' : capitalizeFirst(item)}
         </Chip>)}
       </div>
-      <p className="mt-5 text-caption text-fg-2">Precisa que se repita toda semana? Crie como <Link href="/tarefas" className="font-medium text-fg-1 underline underline-offset-2">hábito</Link>.</p>
+      <p className="mt-5 text-caption text-fg-2">Precisa que se repita toda semana? Crie como <Link href="/hoje?visao=habitos" className="font-medium text-fg-1 underline underline-offset-2">hábito</Link>.</p>
     </Sheet>
   </div>
-}
-
-export default function AgendaPage() {
-  return <Suspense fallback={null}><AgendaContent/></Suspense>
 }

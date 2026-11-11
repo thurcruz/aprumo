@@ -1,13 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight, CalendarDays, Check, CheckSquare, ChevronDown, ChevronLeft, Circle, Clock3, Dumbbell, GripVertical, PencilLine, Pin, Plus, Star, Target, Timer, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, ChevronLeft, Circle, Clock3, Dumbbell, GripVertical, PencilLine, Pin, Plus, Star, Target, Timer, Trash2, X } from 'lucide-react'
 import { useAprumoStore } from '@/lib/store'
 import { dayBlocks, type DayBlock, type Task, type Weekday } from '@/lib/types'
 import { capitalizeFirst, endTimeOf, indexEvents, isDoneOn, isoDate as iso, parseDate as parse, taskShowsOn, weekStart } from '@/lib/utils'
 import PageHeader from '@/components/ui/PageHeader'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import AgendaView from '@/components/today/AgendaView'
+import GoalsView from '@/components/today/GoalsView'
+import HabitsView from '@/components/today/HabitsView'
 import HabitDialog, { type HabitDraft } from '@/components/modules/HabitDialog'
 import TimeDialog from '@/components/modules/TimeDialog'
 import { extensionIcons } from '@/components/modules/extensionIcons'
@@ -16,15 +21,41 @@ import { EXTENSIONS, isExtensionActive } from '@/lib/extensions'
 import { focusHref, focusMinutesByTask } from '@/lib/focus'
 
 const moods = ['😞','😕','😐','🙂','🔥'] as const
-/** As quatro frentes de Performance. O dia acontece aqui; elas dão a estrutura. */
-const subAreas = [
-  { href: '/tarefas', label: 'Hábitos', icon: CheckSquare },
-  { href: '/agenda', label: 'Agenda', icon: CalendarDays },
-  { href: '/metas', label: 'Metas', icon: Target },
-  { href: '/foco', label: 'Foco', icon: Timer },
-]
+/**
+ * Hoje é o único lugar do "o que eu faço": o dia, a agenda, a rotina e as metas
+ * são visões da mesma tela (?visao=), não quatro páginas para descobrir.
+ */
+const views = [
+  { value: 'dia', label: 'Dia' },
+  { value: 'agenda', label: 'Agenda' },
+  { value: 'habitos', label: 'Hábitos' },
+  { value: 'metas', label: 'Metas' },
+] as const
+type View = (typeof views)[number]['value']
+const isView = (value: string | null): value is View => views.some(item => item.value === value)
 
+// useSearchParams() exige um limite de Suspense para a página poder ser pré-renderizada.
 export default function HojePage() {
+  return <Suspense fallback={null}><Hoje/></Suspense>
+}
+
+function Hoje() {
+  const params = useSearchParams()
+  const router = useRouter()
+  const requested = params.get('visao')
+  const view: View = isView(requested) ? requested : 'dia'
+  const tabs = <SegmentedControl className="mb-5" label="Visão" value={view} stretch options={[...views]}
+    onChange={next => router.replace(next === 'dia' ? '/hoje' : `/hoje?visao=${next}`, { scroll: false })}/>
+
+  if (view === 'dia') return <DayView tabs={tabs}/>
+  return <div className="page-wrap">
+    <PageHeader title="Hoje"/>
+    {tabs}
+    {view === 'agenda' ? <AgendaView key={params.get('dia') ?? ''} initialDay={params.get('dia') ?? undefined}/> : view === 'habitos' ? <HabitsView/> : <GoalsView/>}
+  </div>
+}
+
+function DayView({ tabs }: { tabs: ReactNode }) {
   const { store, hydrated, addTask, updateTask, deleteTask, carryTask, setTaskDone, addMood } = useAprumoStore()
   const today = iso(new Date())
   const [selected, setSelected] = useState(today)
@@ -192,7 +223,9 @@ export default function HojePage() {
       title={isToday ? 'Hoje' : selectedDate < parse(today) ? 'Dia que passou' : 'Dia que vem'}
       description={visible.length === 0
         ? 'Conte o que precisa acontecer. A organização vem depois.'
-        : `${done} de ${visible.length} concluídas${focusMinutes > 0 ? ` · ${Math.round(focusMinutes)} min focados` : ''}.`}/>
+        : `${done} de ${visible.length} concluídas${focusMinutes > 0 ? ` · ${Math.round(focusMinutes)} min focados` : ''}.`}
+      actions={<Link href="/foco" aria-label="Sessão de foco" className="grid h-10 w-10 place-items-center rounded-full border border-line text-fg-1 no-underline"><Timer size={18}/></Link>}/>
+    {tabs}
 
     {isToday && hydrated && <section className="surface mb-5 p-5">
       {!plan ? <>
@@ -250,13 +283,13 @@ export default function HojePage() {
           </button>
         })}
       </div>
-      <Link href={`/agenda?dia=${selected}`} aria-label="Abrir agenda" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border no-underline" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}><CalendarDays size={18}/></Link>
+      <Link href={`/hoje?visao=agenda&dia=${selected}`} aria-label="Abrir agenda" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border no-underline" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}><CalendarDays size={18}/></Link>
     </section>
 
-    <nav className="mb-5 grid grid-cols-2 gap-3">
-      {[...subAreas, ...extensionLinks.map(item => ({ href: item.pages[0].href, label: item.label, icon: extensionIcons[item.id] }))]
+    {extensionLinks.length > 0 && <nav className="mb-5 grid grid-cols-2 gap-3">
+      {extensionLinks.map(item => ({ href: item.pages[0].href, label: item.label, icon: extensionIcons[item.id] }))
         .map(({ href, label, icon: Icon }) => <Link key={href} href={href} className="surface flex items-center gap-3 p-4 text-white no-underline"><Icon size={18} className="shrink-0 text-energy"/><span className="text-sm font-semibold">{label}</span></Link>)}
-    </nav>
+    </nav>}
 
     {visible.length > 0 && <button onClick={() => setMinimalDay(v => !v)} className="surface mb-5 flex w-full items-center gap-3 p-4 text-left" style={{ borderColor: minimalDay ? 'rgba(208,224,39,.5)' : undefined }}>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-energy/10 text-energy"><Circle size={16}/></span>
@@ -329,7 +362,7 @@ export default function HojePage() {
                   {linking === task.id ? <>
                     <button onClick={() => setLinking(null)} className="muted flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider hover:text-white"><ChevronLeft size={12}/> Ligar a uma meta</button>
                     {store.goals.length === 0
-                      ? <p className="muted px-2 py-2 text-xs">Você ainda não tem metas. <Link href="/metas" className="text-energy no-underline">Criar a primeira</Link>.</p>
+                      ? <p className="muted px-2 py-2 text-xs">Você ainda não tem metas. <Link href="/hoje?visao=metas" className="text-energy no-underline">Criar a primeira</Link>.</p>
                       : <div className="max-h-52 overflow-y-auto">
                           {store.goals.map(item => <button key={item.id} onClick={() => linkGoal(task, item.id)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/5">
                             <Target size={14} className="shrink-0" style={{ color: task.goalId === item.id ? 'var(--accent)' : undefined }}/>

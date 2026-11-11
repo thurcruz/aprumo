@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AnimatePresence } from 'framer-motion'
 import Button from '@/components/ui/Button'
-import PageHeader from '@/components/ui/PageHeader'
 import { CalendarRange, Check, ChevronDown, Clock3, Flame, PencilLine, Plus, Repeat2, Star, Target, Timer, Trash2 } from 'lucide-react'
 import { focusHref } from '@/lib/focus'
 import { useAprumoStore } from '@/lib/store'
@@ -13,7 +12,8 @@ import { describeFrequency, describeSpan, endTimeOf, habitExpired, habitRunsOn, 
 import HabitDialog, { type HabitDraft } from '@/components/modules/HabitDialog'
 import { streaks } from '@/lib/evolution'
 
-export default function HabitosPage() {
+/** Visão Hábitos do Hoje: a rotina recorrente, que não tem data. */
+export default function HabitsView() {
   const { store, addTask, updateTask, deleteTask, setTaskDone } = useAprumoStore()
   const today = iso(new Date())
   const [creating, setCreating] = useState(false)
@@ -65,10 +65,11 @@ export default function HabitosPage() {
     if (next.length >= 2 && next !== task.title) updateTask({ ...task, title: next }, today)
   }
 
-  return <div className="page-wrap" onClick={closeMenu}>
-    <PageHeader back={{ href: '/hoje', label: 'Hoje' }} title="Hábitos"
-      description={<>Decida uma vez, execute todos os dias. O que é só de hoje pertence ao <Link href="/hoje" className="font-medium text-fg-1 underline underline-offset-2">seu dia</Link>.</>}
-      actions={<Button icon={<Plus size={17}/>} onClick={() => setCreating(true)}>Hábito</Button>}/>
+  return <div onClick={closeMenu}>
+    <div className="mb-5 flex items-center justify-between gap-4">
+      <p className="text-body-s text-fg-2">Decida uma vez, execute todos os dias. O que é só de hoje fica no <Link href="/hoje" className="font-medium text-fg-1 underline underline-offset-2">Dia</Link>.</p>
+      <Button icon={<Plus size={17}/>} onClick={() => setCreating(true)}>Hábito</Button>
+    </div>
 
     <section className="grid gap-3 sm:grid-cols-3">
       <div className="surface p-5"><Check size={19} className="text-energy"/><strong className="mt-5 block text-2xl">{done}/{activeToday.length}</strong><span className="muted text-xs">cumpridos hoje</span></div>
