@@ -10,8 +10,8 @@ import { daysBetween, habitRunsOn, indexEvents, isDoneOn, isoDate, nextDay, pars
  * A progressão são fases em sequência: "semanas 1–2" termina no dia anterior
  * ao começo de "semanas 3–4".
  *
- * Tudo aqui é puro. O `build` de cada modelo é o plano padrão (Free) e também a
- * base que a Pri adapta à rotina (Aprumo+) em lib/routine-plan-engine.ts — as
+ * Tudo aqui é puro. O `build` de cada modelo é o plano padrão (sem crédito) e
+ * também a base que a Pri adapta à rotina em lib/routine-plan-engine.ts — as
  * duas saídas passam pela mesma validação, `sanitizePlanHabits`.
  */
 
@@ -68,7 +68,7 @@ const everyDay: Weekday[] = [0, 1, 2, 3, 4, 5, 6]
 const BLOCKS: DayBlock[] = ['manha', 'tarde', 'noite', 'livre']
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 
-function shiftDays(value: string, days: number): string {
+export function shiftDays(value: string, days: number): string {
   const date = parseDate(value)
   date.setDate(date.getDate() + days)
   return isoDate(date)

@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { ArrowLeft, ArrowRight, CalendarDays, Check, CheckSquare, ChevronDown, ChevronLeft, Circle, Clock3, Dumbbell, GripVertical, PencilLine, Pin, Plus, Star, Target, Timer, Trash2, X } from 'lucide-react'
 import { useAprumoStore } from '@/lib/store'
 import { dayBlocks, type DayBlock, type Task, type Weekday } from '@/lib/types'
-import { endTimeOf, indexEvents, isDoneOn, isoDate as iso, parseDate as parse, taskShowsOn, weekStart } from '@/lib/utils'
+import { capitalizeFirst, endTimeOf, indexEvents, isDoneOn, isoDate as iso, parseDate as parse, taskShowsOn, weekStart } from '@/lib/utils'
+import PageHeader from '@/components/ui/PageHeader'
 import HabitDialog, { type HabitDraft } from '@/components/modules/HabitDialog'
 import TimeDialog from '@/components/modules/TimeDialog'
-import { PlusGate } from '@/components/plus/PlusGate'
+import { extensionIcons } from '@/components/modules/extensionIcons'
+import { currentDiagnosisPlan } from '@/lib/diagnosis'
+import { EXTENSIONS, isExtensionActive } from '@/lib/extensions'
+import { focusHref, focusMinutesByTask } from '@/lib/focus'
 
 const moods = ['😞','😕','😐','🙂','🔥'] as const
 /** As quatro frentes de Performance. O dia acontece aqui; elas dão a estrutura. */
@@ -21,7 +25,7 @@ const subAreas = [
 ]
 
 export default function HojePage() {
-  const { store, addTask, updateTask, deleteTask, carryTask, setTaskDone, addMood } = useAprumoStore()
+  const { store, hydrated, addTask, updateTask, deleteTask, carryTask, setTaskDone, addMood } = useAprumoStore()
   const today = iso(new Date())
   const [selected, setSelected] = useState(today)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -62,7 +66,17 @@ export default function HojePage() {
   const focusMinutes = (store.focusSessions ?? [])
     .filter(s => s.status === 'completed' && s.startedAt.slice(0, 10) === selected)
     .reduce((sum, s) => sum + s.actualSeconds / 60, 0)
-  const selectedMood = store.moods.find(entry => iso(new Date(entry.date)) === selected)?.mood
+  const focusByTask = useMemo(() => focusMinutesByTask(store.focusSessions ?? [], selected), [store.focusSessions, selected])
+  const moodEntry = store.moods.find(entry => iso(new Date(entry.date)) === selected)
+  const selectedMood = moodEntry?.mood
+
+  // O que importa hoje: a próxima ação do plano do diagnóstico, não um painel de números.
+  const plan = useMemo(() => currentDiagnosisPlan(store.tasks, store.taskEvents, today), [store.tasks, store.taskEvents, today])
+  const planGoal = plan ? store.goals.find(goal => plan.tasks.some(task => task.goalId === goal.id)) : undefined
+  const planToday = plan?.today ?? []
+  const planDoneToday = planToday.filter(task => doneOn(task, today)).length
+  const nextAction = planToday.find(task => !doneOn(task, today))
+  const extensionLinks = EXTENSIONS.filter(item => isExtensionActive(item.id, store.extensions, store))
 
   function create(block: DayBlock) {
     const title = (drafts[block] ?? '').trim()
@@ -173,15 +187,46 @@ export default function HojePage() {
   }, [isDragging])
 
   return <div className="page-wrap" onClick={closeMenu}>
-    <header className="mb-6">
-      <p className="eyebrow">{new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(selectedDate)}</p>
-      <h1 className="display mt-3 max-w-2xl text-4xl font-semibold md:text-6xl">{isToday ? <>Como vai ser<br/>o seu dia?</> : <>Seu dia<br/>{selectedDate < parse(today) ? 'que passou.' : 'que vem.'}</>}</h1>
-      <p className="muted mt-4 max-w-xl">
-        {visible.length === 0
-          ? 'Conte o que precisa acontecer. A organização vem depois.'
-          : `${done} de ${visible.length} concluídas${focusMinutes > 0 ? ` · ${Math.round(focusMinutes)} min focados` : ''}.`}
-      </p>
-    </header>
+    <PageHeader
+      eyebrow={capitalizeFirst(new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(selectedDate))}
+      title={isToday ? 'Hoje' : selectedDate < parse(today) ? 'Dia que passou' : 'Dia que vem'}
+      description={visible.length === 0
+        ? 'Conte o que precisa acontecer. A organização vem depois.'
+        : `${done} de ${visible.length} concluídas${focusMinutes > 0 ? ` · ${Math.round(focusMinutes)} min focados` : ''}.`}/>
+
+    {isToday && hydrated && <section className="surface mb-5 p-5">
+      {!plan ? <>
+        <p className="eyebrow">Seu plano</p>
+        <h2 className="mt-2 text-xl font-semibold">Onde você quer chegar?</h2>
+        <p className="muted mt-1 text-sm">Uma conversa curta com a Pri vira um plano pequeno para as próximas semanas.</p>
+        <Link href="/onboarding" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-energy no-underline">Fazer meu diagnóstico <ArrowRight size={15}/></Link>
+      </> : plan.status === 'finished' ? <>
+        <p className="eyebrow">Seu plano · ciclo concluído</p>
+        <h2 className="mt-2 text-xl font-semibold">{planGoal?.title ?? 'Seu plano'}</h2>
+        <p className="muted mt-1 text-sm">{plan.done} de {plan.due} ações feitas no ciclo. Hora de revisar o que funcionou e ajustar o próximo passo.</p>
+        <div className="mt-4 flex flex-wrap gap-5">
+          <Link href="/pri" className="inline-flex items-center gap-2 text-sm font-semibold text-energy no-underline">Revisar com a Pri <ArrowRight size={15}/></Link>
+          <Link href="/onboarding" className="muted text-sm no-underline hover:text-white">Novo diagnóstico</Link>
+        </div>
+      </> : <>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="eyebrow">Seu plano · {plan.status === 'upcoming' ? `começa em ${new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short' }).format(parse(plan.startsOn))}` : `semana ${plan.week} de ${plan.totalWeeks}`}</p>
+          <Link href="/pri" className="shrink-0 text-xs text-energy no-underline">Ajustar com a Pri</Link>
+        </div>
+        <h2 className="mt-2 text-xl font-semibold">{planGoal?.title ?? 'Seu plano'}</h2>
+        {nextAction
+          ? <div className="mt-4 flex items-center gap-2 rounded-2xl border border-white/[.07] bg-white/[.025] p-3">
+              <div className="min-w-0 flex-1">
+                <p className="muted text-xs">Próxima ação de hoje</p>
+                <p className="truncate text-sm font-semibold">{nextAction.title}</p>
+              </div>
+              <Link href={focusHref(nextAction.id)} className="flex shrink-0 items-center gap-1 rounded-full bg-energy/10 px-3 py-1.5 text-xs font-semibold text-energy no-underline"><Timer size={13}/> Focar</Link>
+              <button onClick={() => toggle(nextAction)} className="flex shrink-0 items-center gap-1 rounded-full bg-energy px-3 py-1.5 text-xs font-semibold text-[#11130f]"><Check size={13}/> Feito</button>
+            </div>
+          : <p className="muted mt-3 text-sm">{planToday.length > 0 ? 'Tudo do plano feito hoje. Amanhã tem mais.' : 'Hoje é dia de descanso no plano.'}</p>}
+        {plan.status === 'running' && <p className="muted mt-3 text-xs">{planDoneToday} de {planToday.length} de hoje · {plan.done} de {plan.due} no ciclo até agora</p>}
+      </>}
+    </section>}
 
     <section className="mb-5 flex items-center gap-2">
       <div className="flex flex-1 gap-1.5 overflow-x-auto">
@@ -209,7 +254,8 @@ export default function HojePage() {
     </section>
 
     <nav className="mb-5 grid grid-cols-2 gap-3">
-      {subAreas.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className="surface flex items-center gap-3 p-4 text-white no-underline"><Icon size={18} className="shrink-0 text-energy"/><span className="text-sm font-semibold">{label}</span></Link>)}
+      {[...subAreas, ...extensionLinks.map(item => ({ href: item.pages[0].href, label: item.label, icon: extensionIcons[item.id] }))]
+        .map(({ href, label, icon: Icon }) => <Link key={href} href={href} className="surface flex items-center gap-3 p-4 text-white no-underline"><Icon size={18} className="shrink-0 text-energy"/><span className="text-sm font-semibold">{label}</span></Link>)}
     </nav>
 
     {visible.length > 0 && <button onClick={() => setMinimalDay(v => !v)} className="surface mb-5 flex w-full items-center gap-3 p-4 text-left" style={{ borderColor: minimalDay ? 'rgba(208,224,39,.5)' : undefined }}>
@@ -272,6 +318,7 @@ export default function HojePage() {
                       {goal && <Target size={12} className="shrink-0 text-energy" aria-label={`Meta: ${goal.title}`}/>}
                       <p className={`truncate text-sm ${completed ? 'text-white/35 line-through' : 'text-white'}`}>{task.title}</p>
                       {task.startTime && <span className="muted flex shrink-0 items-center gap-1 text-[11px]"><Clock3 size={10}/>{task.startTime}{endTimeOf(task) && `–${endTimeOf(task)}`}</span>}
+                      {(focusByTask.get(task.id) ?? 0) >= 1 && <span className="muted flex shrink-0 items-center gap-1 text-[11px]" aria-label="Minutos focados neste dia"><Timer size={10}/>{Math.round(focusByTask.get(task.id)!)} min</span>}
                     </div>}
 
                 {/* Hábito de treino: abre a ficha direto na execução. */}
@@ -294,6 +341,7 @@ export default function HojePage() {
                       <button onClick={() => linkGoal(task, undefined)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/5"><X size={14}/> Desligar da meta</button>
                     </>}
                   </> : <>
+                    <Link href={focusHref(task.id)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-white no-underline hover:bg-white/5"><Timer size={14}/> Focar nisto</Link>
                     <button onClick={() => { toggleFixed(task); closeMenu() }} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/5"><Pin size={14} style={{ color: fixed ? 'var(--accent)' : undefined }}/> {fixed ? 'Deixar de ser hábito' : 'Fixar como hábito'}</button>
                     <button onClick={() => { toggleEssential(task); closeMenu() }} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/5"><Star size={14} style={{ color: essential ? 'var(--accent)' : undefined }}/> {essential ? 'Remover de essencial' : 'Marcar como essencial'}</button>
                     <button onClick={() => { closeMenu(); setSchedulingTime(task) }} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/5"><Clock3 size={14} style={{ color: task.startTime ? 'var(--accent)' : undefined }}/> {task.startTime ? `${task.startTime}${endTimeOf(task) ? `–${endTimeOf(task)}` : ''}` : 'Definir horário'}</button>
@@ -327,28 +375,20 @@ export default function HojePage() {
         {moods.map((mood, index) => {
           const level = (index + 1) as 1|2|3|4|5
           const active = selectedMood === level
-          return <button key={mood} onClick={() => addMood({ id: crypto.randomUUID(), date: parse(selected).toISOString(), mood: level })}
+          return <button key={mood} onClick={() => addMood({ id: crypto.randomUUID(), date: parse(selected).toISOString(), mood: level, note: moodEntry?.note })}
             aria-label={`Humor ${level} de 5`} aria-pressed={active}
             className="grid h-11 w-11 place-items-center rounded-full border text-xl transition hover:-translate-y-1"
             style={{ borderColor: active ? 'var(--energy)' : 'rgb(var(--fg-rgb) / .1)', background: active ? 'rgba(208,224,39,.12)' : 'rgb(var(--fg-rgb) / .03)', transform: active ? 'scale(1.1)' : undefined }}>{mood}</button>
         })}
       </div>
-      <p className="muted mt-4 text-xs">{selectedMood ? 'Pode trocar quando quiser — vale o que você sente agora.' : 'Leva 2 segundos e ajuda a entender seus padrões.'}</p>
-    </section>
-
-    <section className="mt-5">
-      <PlusGate title="Entenda sua semana, não só registre" description="Constância detalhada, disciplina, taxa de repasses e padrões semanais. A Pri transforma seus registros em análise e planejamento.">
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="surface p-6">
-          <p className="eyebrow">Insights da Pri</p>
-          <h2 className="mt-2 text-xl font-semibold">Sua semana em análise</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/[.07] p-4"><p className="muted text-xs">Concluídas</p><p className="mt-1 text-2xl font-semibold">{done}</p></div>
-            <div className="rounded-2xl border border-white/[.07] p-4"><p className="muted text-xs">Adiadas</p><p className="mt-1 text-2xl font-semibold">{store.metrics.carriedCommitments}</p></div>
-            <div className="rounded-2xl border border-white/[.07] p-4"><p className="muted text-xs">Foco no dia</p><p className="mt-1 text-2xl font-semibold">{Math.round(focusMinutes)}m</p></div>
-          </div>
-          <Link href="/pri" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-energy no-underline">Ver relatório completo <ArrowRight size={15}/></Link>
-        </motion.div>
-      </PlusGate>
+      {moodEntry && <input key={moodEntry.id} defaultValue={moodEntry.note ?? ''} maxLength={280} aria-label="O que pode ter influenciado?"
+        onBlur={event => { const note = event.target.value.trim(); if (note !== (moodEntry.note ?? '')) addMood({ ...moodEntry, note }) }}
+        onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
+        placeholder="O que pode ter influenciado? (opcional)" className="field mt-5 py-2 text-sm"/>}
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="muted text-xs">{selectedMood ? 'Pode trocar quando quiser — vale o que você sente agora.' : 'Leva 2 segundos e ajuda a entender seus padrões.'}</p>
+        {store.moods.length > 0 && <Link href="/emocional" className="shrink-0 text-xs text-energy no-underline">Ver registros</Link>}
+      </div>
     </section>
 
     {drag && <div className="glass pointer-events-none fixed z-[60] max-w-56 truncate rounded-2xl px-3 py-2 text-sm font-semibold" style={{ left: drag.x + 14, top: drag.y - 18 }}>
