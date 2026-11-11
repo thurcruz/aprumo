@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basicDiagnosisPlan, currentDiagnosisPlan, diagnosisGoal, diagnosisWindow, MAX_DIAGNOSIS_ACTIONS, parseDiagnosisAnswers, sanitizeDiagnosisHabits } from './diagnosis'
+import { basicDiagnosisPlan, currentDiagnosisPlan, diagnosisGoal, diagnosisWindow, extensionsForFocuses, MAX_DIAGNOSIS_ACTIONS, parseDiagnosisAnswers, sanitizeDiagnosisHabits } from './diagnosis'
 import { planHabitToTask } from './routine-plans'
 
 const valid = { name: 'Ana', destination: 'Lançar meu produto', area: 'carreira', obstacle: 'Procrastino à noite', minutesPerDay: 30, dayBlock: 'manha' }
@@ -14,6 +14,25 @@ describe('diagnóstico', () => {
     expect(parseDiagnosisAnswers({ ...valid, destination: '' })).toBeNull()
     expect(parseDiagnosisAnswers({ ...valid, area: 'admin' })).toBeNull()
     expect(parseDiagnosisAnswers(null)).toBeNull()
+  })
+
+  it('focos: filtra os desconhecidos, tira repetidos e limita a três', () => {
+    const parsed = parseDiagnosisAnswers({ ...valid, focuses: ['treino', 'admin', 'treino', 'leitura', 'financas', 'vicio'] })
+    expect(parsed?.focuses).toEqual(['treino', 'leitura', 'financas'])
+    expect(parseDiagnosisAnswers(valid)).not.toHaveProperty('focuses')
+  })
+
+  it('sem área explícita, a área vem do primeiro foco', () => {
+    const { area: _area, ...rest } = valid
+    void _area
+    expect(parseDiagnosisAnswers({ ...rest, focuses: ['financas', 'treino'] })?.area).toBe('financeiro')
+    expect(parseDiagnosisAnswers({ ...rest, focuses: [] })).toBeNull()
+  })
+
+  it('cada foco liga a extensão que serve a ele, sem repetir', () => {
+    expect(extensionsForFocuses(['treino', 'estudos', 'vicio'])).toEqual(['treino', 'antivicio'])
+    expect(extensionsForFocuses(['leitura', 'leitura'])).toEqual(['repertorio'])
+    expect(extensionsForFocuses(['rotina', 'carreira'])).toEqual([])
   })
 
   it('tempo e período fora das opções caem no padrão', () => {

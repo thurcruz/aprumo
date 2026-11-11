@@ -7,7 +7,7 @@ import { ArrowUp, RotateCcw } from 'lucide-react'
 import PriOrb from '@/components/pri/PriOrb'
 import Button from '@/components/ui/Button'
 import Chip from '@/components/ui/Chip'
-import { basicDiagnosisPlan, DIAGNOSIS_AREAS, DIAGNOSIS_MINUTES, DIAGNOSIS_SLUG, DIAGNOSIS_WEEKS, diagnosisGoal, type DiagnosisAnswers, type DiagnosisPlan } from '@/lib/diagnosis'
+import { basicDiagnosisPlan, DIAGNOSIS_FOCUSES, DIAGNOSIS_MINUTES, extensionsForFocuses, focusLabels, MAX_DIAGNOSIS_FOCUSES, type DiagnosisFocus, DIAGNOSIS_SLUG, DIAGNOSIS_WEEKS, diagnosisGoal, type DiagnosisAnswers, type DiagnosisPlan } from '@/lib/diagnosis'
 import { PRI_BILLING_CTA, type PriCta } from '@/lib/pri'
 import { planHabitToTask } from '@/lib/routine-plans'
 import { useAprumoStore } from '@/lib/store'
@@ -15,7 +15,7 @@ import { dayBlocks, type TaskSource } from '@/lib/types'
 import { describeFrequency, isoDate } from '@/lib/utils'
 import { cx } from '@/lib/cx'
 
-type Step = 'name' | 'destination' | 'area' | 'obstacle' | 'minutes' | 'block' | 'thinking' | 'preview' | 'error'
+type Step = 'name' | 'focus' | 'destination' | 'obstacle' | 'minutes' | 'block' | 'thinking' | 'preview' | 'error'
 type Draft = Partial<DiagnosisAnswers>
 
 const minuteLabel = (minutes: number) => minutes === 60 ? '1 hora' : `${minutes} min`
@@ -24,8 +24,8 @@ const minuteLabel = (minutes: number) => minutes === 60 ? '1 hora' : `${minutes}
 function question(step: Step, draft: Draft): string {
   switch (step) {
     case 'name': return 'Oi, eu sou a Pri. Vou montar com você um plano pequeno e possível. Como posso te chamar?'
-    case 'destination': return `Prazer, ${draft.name}. Onde você quer chegar nos próximos 90 dias?`
-    case 'area': return 'Isso mexe mais com qual parte da sua vida?'
+    case 'focus': return `Prazer, ${draft.name}. O que você quer dominar agora? Escolha até ${MAX_DIAGNOSIS_FOCUSES}.`
+    case 'destination': return 'Onde você quer chegar nos próximos 90 dias? Seja concreto.'
     case 'obstacle': return 'O que hoje mais atrapalha você de chegar lá?'
     case 'minutes': return 'Quanto tempo por dia dá para dedicar de verdade?'
     case 'block': return 'E em que parte do dia isso cabe melhor?'
@@ -33,13 +33,13 @@ function question(step: Step, draft: Draft): string {
   }
 }
 
-const order: Step[] = ['name', 'destination', 'area', 'obstacle', 'minutes', 'block']
+const order: Step[] = ['name', 'focus', 'destination', 'obstacle', 'minutes', 'block']
 
 function answerOf(step: Step, draft: Draft): string | undefined {
   switch (step) {
     case 'name': return draft.name
+    case 'focus': return draft.focuses?.length ? focusLabels(draft.focuses).join(' · ') : undefined
     case 'destination': return draft.destination
-    case 'area': return DIAGNOSIS_AREAS.find(item => item.id === draft.area)?.label
     case 'obstacle': return draft.obstacle === undefined ? undefined : draft.obstacle || 'Prefiro não dizer agora'
     case 'minutes': return draft.minutesPerDay ? minuteLabel(draft.minutesPerDay) : undefined
     case 'block': return dayBlocks.find(block => block.id === draft.dayBlock)?.label
@@ -49,10 +49,12 @@ function answerOf(step: Step, draft: Draft): string | undefined {
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const { store, hydrated, setUserName, setPurpose, addGoal, addTask } = useAprumoStore()
+  const { store, hydrated, setUserName, setPurpose, addGoal, addTask, setExtensions } = useAprumoStore()
   const [step, setStep] = useState<Step>('name')
   const [draft, setDraft] = useState<Draft>({})
   const [input, setInput] = useState('')
+  /** Focos marcados antes de confirmar: a pergunta aceita mais de um. */
+  const [picked, setPicked] = useState<DiagnosisFocus[]>([])
   const [plan, setPlan] = useState<{ value: DiagnosisPlan; source: TaskSource } | null>(null)
   const [failure, setFailure] = useState<{ message: string; cta?: PriCta } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -109,7 +111,8 @@ export default function OnboardingPage() {
     setPlan(null)
     setFailure(null)
     setDraft(current => ({ name: current.name }))
-    setStep('destination')
+    setPicked([])
+    setStep('focus')
   }
 
   async function start() {
@@ -121,6 +124,9 @@ export default function OnboardingPage() {
     const now = new Date()
     setUserName(answers.name)
     setPurpose(answers.destination.slice(0, 180))
+    // Quem escolheu Treino já encontra Treino ligado: as áreas certas aparecem sem a pessoa procurar.
+    const extensions = extensionsForFocuses(answers.focuses ?? [])
+    if (extensions.length > 0) await setExtensions(Object.fromEntries(extensions.map(id => [id, true])))
     // Hoje recarrega do servidor ao abrir: sem esperar a gravação, o plano recém-criado sumiria.
     // A meta vem antes porque as ações apontam para ela.
     await addGoal(diagnosisGoal(plan.value, answers, { id: goalId, today }))
@@ -180,8 +186,16 @@ export default function OnboardingPage() {
     {step === 'name' && hydrated && store.userName.length >= 2 && <div className="mt-4 flex flex-wrap gap-2">
       <Chip selected={false} onClick={() => answer({ name: store.userName })}>Pode me chamar de {store.userName}</Chip>
     </div>}
-    {step === 'area' && <div className="mt-4 flex flex-wrap gap-2">
-      {DIAGNOSIS_AREAS.map(item => <Chip key={item.id} selected={false} onClick={() => answer({ area: item.id })}>{item.label}</Chip>)}
+    {step === 'focus' && <div className="mt-4">
+      <div className="flex flex-wrap gap-2">
+        {DIAGNOSIS_FOCUSES.map(item => {
+          const on = picked.includes(item.id)
+          return <Chip key={item.id} selected={on} disabled={!on && picked.length >= MAX_DIAGNOSIS_FOCUSES}
+            onClick={() => setPicked(current => on ? current.filter(id => id !== item.id) : [...current, item.id])}>{item.label}</Chip>
+        })}
+      </div>
+      <Button className="mt-4" fullWidth disabled={picked.length === 0}
+        onClick={() => answer({ focuses: picked, area: DIAGNOSIS_FOCUSES.find(item => item.id === picked[0])!.area })}>Continuar</Button>
     </div>}
     {step === 'minutes' && <div className="mt-4 flex flex-wrap gap-2">
       {DIAGNOSIS_MINUTES.map(minutes => <Chip key={minutes} selected={false} onClick={() => answer({ minutesPerDay: minutes })}>{minuteLabel(minutes)}</Chip>)}
@@ -193,7 +207,7 @@ export default function OnboardingPage() {
     {textStep && <form onSubmit={submitText} className="mt-4 flex items-center gap-2 rounded-full border border-line-strong bg-surface-2 p-1.5 pl-4">
       <input autoFocus aria-label="Sua resposta" value={input} onChange={event => setInput(event.target.value)} maxLength={step === 'name' ? 60 : 240}
         className="min-w-0 flex-1 bg-transparent py-2.5 text-body outline-none placeholder:text-fg-3"
-        placeholder={step === 'name' ? 'Seu nome' : step === 'destination' ? 'Ex.: lançar a primeira versão do meu produto' : 'Ex.: chego cansado e deixo para depois'}/>
+        placeholder={step === 'name' ? 'Seu nome' : step === 'destination' ? (DIAGNOSIS_FOCUSES.find(item => item.id === draft.focuses?.[0])?.example ?? 'Ex.: lançar a primeira versão do meu produto') : 'Ex.: chego cansado e deixo para depois'}/>
       {step === 'obstacle' && !input.trim() && <button type="button" onClick={() => answer({ obstacle: '' })} className="shrink-0 px-2 text-caption text-fg-3 hover:text-fg-1">Pular</button>}
       <button disabled={step === 'name' ? input.trim().length < 2 : step === 'destination' ? input.trim().length < 4 : !input.trim()} aria-label="Enviar"
         className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-fg-1 text-canvas transition-opacity disabled:opacity-30"><ArrowUp size={18}/></button>

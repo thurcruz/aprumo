@@ -70,8 +70,9 @@ async function loadProfile(): Promise<{ userName?: string; purpose?: string; ext
 }
 
 function saveProfile(payload: { displayName?: string; purpose?: string; extensions?: ExtensionChoices }) {
-  if (!BACKEND_ENABLED) return
-  void fetch('/api/profile', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
+  if (!BACKEND_ENABLED) return Promise.resolve()
+  // Devolve a gravação: quem vai trocar de tela logo em seguida (o diagnóstico) pode esperá-la.
+  return fetch('/api/profile', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     .then((response) => { if (!response.ok) throw new Error(String(response.status)) })
     .catch((error) => console.error('[aprumo-store] falha ao salvar perfil', error))
 }
@@ -216,6 +217,8 @@ export function useAprumoStore() {
   const setPurpose = useCallback((p: string) => { update((s) => ({ ...s, purpose: p })); saveProfile({ purpose: p }) }, [update])
   const setUserName = useCallback((n: string) => { update((s) => ({ ...s, userName: n })); saveProfile({ displayName: n }) }, [update])
   const setExtension = useCallback((id: ExtensionId, active: boolean) => { update((s) => ({ ...s, extensions: { ...s.extensions, [id]: active } })); saveProfile({ extensions: { [id]: active } }) }, [update])
+  /** Várias escolhas numa gravação só: a rota lê, mistura e grava, e chamadas em paralelo se atropelariam. */
+  const setExtensions = useCallback((choices: ExtensionChoices) => { update((s) => ({ ...s, extensions: { ...s.extensions, ...choices } })); return saveProfile({ extensions: choices }) }, [update])
   const addFinancialGoal = useCallback((fg: FinancialGoal) => {update((s) => ({ ...s, financialGoals: [...(s.financialGoals ?? []), fg] }));void syncDomain('addFinancialGoal',{financialGoal:fg})}, [update])
   const updateFinancialGoal = useCallback((fg: FinancialGoal) => {update((s) => ({ ...s, financialGoals: (s.financialGoals ?? []).map((x) => (x.id === fg.id ? fg : x)) }));void syncDomain('updateFinancialGoal',{financialGoal:fg})}, [update])
 
@@ -255,6 +258,7 @@ export function useAprumoStore() {
     applyProfile,
     setUserName,
     setExtension,
+    setExtensions,
     addFinancialGoal,
     updateFinancialGoal,
     deleteFinancialGoal,

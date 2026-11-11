@@ -1,7 +1,7 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
-import { DIAGNOSIS_AREAS, DIAGNOSIS_WEEKS, diagnosisWindow, MAX_DIAGNOSIS_ACTIONS, sanitizeDiagnosisHabits, type DiagnosisAnswers, type DiagnosisPlan } from './diagnosis'
+import { DIAGNOSIS_AREAS, focusLabels, DIAGNOSIS_WEEKS, diagnosisWindow, MAX_DIAGNOSIS_ACTIONS, sanitizeDiagnosisHabits, type DiagnosisAnswers, type DiagnosisPlan } from './diagnosis'
 import { chargePri, PRI_MODEL, type PriGateCode } from './pri-engine'
 import { PLAN_FORMAT, requestStructured } from './routine-plan-engine'
 import { dayBlocks } from './types'
@@ -40,6 +40,7 @@ export async function generateInitialPlan(params: { supabase: SupabaseClient<Dat
   const input = [
     `DESTINO (90 dias): ${answers.destination}`,
     `ÁREA: ${DIAGNOSIS_AREAS.find(item => item.id === answers.area)?.label}`,
+    ...(answers.focuses?.length ? [`O QUE QUER DOMINAR: ${focusLabels(answers.focuses).join(', ')} (distribua as ações entre esses focos, sem passar do tempo diário)`] : []),
     `O QUE MAIS ATRAPALHA: ${answers.obstacle || 'não informado'}`,
     `TEMPO POR DIA: ${answers.minutesPerDay} minutos`,
     `PERÍODO DO DIA: ${answers.dayBlock} (${dayBlocks.find(block => block.id === answers.dayBlock)?.label})`,

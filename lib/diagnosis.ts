@@ -1,4 +1,5 @@
 import { planProgress, sanitizePlanHabits, shiftDays, type PlanHabit, type PlanProgress } from './routine-plans'
+import type { ExtensionId } from './extensions'
 import type { DayBlock, Goal, GoalCategory, Task, TaskEvent } from './types'
 
 /**
@@ -25,6 +26,31 @@ export const DIAGNOSIS_AREAS: { id: GoalCategory; label: string }[] = [
   { id: 'conhecimento', label: 'Estudo e aprendizado' },
 ]
 
+/**
+ * O que a pessoa quer dominar, na língua de quem vive em alta performance.
+ * Cada foco liga a extensão que serve a ele e define a área da meta (o primeiro escolhido manda).
+ */
+export const DIAGNOSIS_FOCUSES = [
+  { id: 'treino', label: 'Treino e corpo', area: 'saude', extension: 'treino', example: 'Ex.: treinar 4x por semana e perder 6 kg' },
+  { id: 'leitura', label: 'Leitura', area: 'conhecimento', extension: 'repertorio', example: 'Ex.: ler 6 livros até o fim do ano' },
+  { id: 'estudos', label: 'Estudos', area: 'conhecimento', example: 'Ex.: passar na prova de março' },
+  { id: 'financas', label: 'Finanças', area: 'financeiro', extension: 'financas', example: 'Ex.: juntar R$ 10 mil de reserva' },
+  { id: 'vicio', label: 'Largar um vício', area: 'saude', extension: 'antivicio', example: 'Ex.: 90 dias sem redes sociais à noite' },
+  { id: 'rotina', label: 'Rotina e produtividade', area: 'carreira', example: 'Ex.: acordar às 6h e fazer o mais importante primeiro' },
+  { id: 'carreira', label: 'Carreira e negócio', area: 'carreira', example: 'Ex.: lançar a primeira versão do meu produto' },
+] as const satisfies readonly { id: string; label: string; area: GoalCategory; extension?: ExtensionId; example: string }[]
+export type DiagnosisFocus = (typeof DIAGNOSIS_FOCUSES)[number]['id']
+export const MAX_DIAGNOSIS_FOCUSES = 3
+
+const focusOf = (id: DiagnosisFocus) => DIAGNOSIS_FOCUSES.find(item => item.id === id)!
+
+/** As extensões que os focos escolhidos pedem, sem repetição. */
+export function extensionsForFocuses(focuses: readonly DiagnosisFocus[]): ExtensionId[] {
+  return [...new Set(focuses.flatMap(id => { const focus = focusOf(id); return 'extension' in focus ? [focus.extension] : [] }))]
+}
+
+export const focusLabels = (focuses: readonly DiagnosisFocus[]) => focuses.map(id => focusOf(id).label)
+
 const BLOCKS: DayBlock[] = ['manha', 'tarde', 'noite', 'livre']
 
 export interface DiagnosisAnswers {
@@ -32,6 +58,8 @@ export interface DiagnosisAnswers {
   /** Onde a pessoa quer chegar, nas palavras dela. */
   destination: string
   area: GoalCategory
+  /** O que a pessoa quer dominar. Opcional para respostas antigas, que só tinham a área. */
+  focuses?: DiagnosisFocus[]
   /** O que hoje mais atrapalha. */
   obstacle: string
   minutesPerDay: number
@@ -53,13 +81,17 @@ export function parseDiagnosisAnswers(raw: unknown): DiagnosisAnswers | null {
   const name = text(value.name, 60)
   const destination = text(value.destination, 240)
   const obstacle = text(value.obstacle, 240)
-  const area = DIAGNOSIS_AREAS.find(item => item.id === value.area)?.id
+  const focuses = Array.isArray(value.focuses)
+    ? [...new Set(value.focuses.filter((id): id is DiagnosisFocus => DIAGNOSIS_FOCUSES.some(item => item.id === id)))].slice(0, MAX_DIAGNOSIS_FOCUSES)
+    : []
+  const area = DIAGNOSIS_AREAS.find(item => item.id === value.area)?.id ?? (focuses[0] ? focusOf(focuses[0]).area : undefined)
   const minutes = Number(value.minutesPerDay)
   if (name.length < 2 || destination.length < 4 || !area) return null
   return {
     name,
     destination,
     area,
+    ...(focuses.length > 0 ? { focuses } : {}),
     obstacle,
     minutesPerDay: (DIAGNOSIS_MINUTES as readonly number[]).includes(minutes) ? minutes : 30,
     dayBlock: BLOCKS.includes(value.dayBlock as DayBlock) ? value.dayBlock as DayBlock : 'livre',
