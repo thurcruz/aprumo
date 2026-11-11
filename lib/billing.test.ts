@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { creditsForPrice, parsePriceCredits, resolvePlan } from './billing'
+import { creditsForPrice, parsePriceCredits, resolvePlan, subscriptionOfInvoice } from './billing'
+
+describe('assinatura de uma fatura', () => {
+  it('lê o formato atual da API (invoice.parent)', () => {
+    expect(subscriptionOfInvoice({ parent: { subscription_details: { subscription: 'sub_1' } }, lines: { data: [{}] } })).toBe('sub_1')
+  })
+  it('cai para o parent da linha quando a fatura não traz', () => {
+    expect(subscriptionOfInvoice({ lines: { data: [{ parent: { subscription_item_details: { subscription: 'sub_2' } } }] } })).toBe('sub_2')
+  })
+  it('ainda entende eventos de versões antigas', () => {
+    expect(subscriptionOfInvoice({ lines: { data: [{ subscription: { id: 'sub_3' } }] } })).toBe('sub_3')
+  })
+  it('fatura avulsa não tem assinatura', () => {
+    expect(subscriptionOfInvoice({ parent: null, lines: { data: [{ parent: null }] } })).toBeNull()
+    expect(subscriptionOfInvoice({})).toBeNull()
+  })
+})
 
 describe('plano a partir do status da assinatura', () => {
   it('ativa, em teste ou em cobrança em atraso contam como Plus', () => {

@@ -14,7 +14,7 @@ type OpenAIResponse = { output?: Array<{ type?: string; content?: Array<{ type?:
 const blockFromDb: Record<string, string> = { morning: 'manha', afternoon: 'tarde', evening: 'noite', anytime: 'livre' }
 
 /** Saída estruturada no mesmo formato de PlanHabit, para passar direto por sanitizePlanHabits. */
-const PLAN_FORMAT = {
+export const PLAN_FORMAT = {
   type: 'json_schema',
   name: 'routine_plan',
   strict: true,
@@ -53,6 +53,18 @@ const INSTRUCTIONS = [
   'Datas em YYYY-MM-DD dentro da janela do plano; horários em HH:MM (24 h) ou null; dias da semana de 0 (domingo) a 6 (sábado). Títulos curtos, no estilo do plano base.',
   'No summary, em até 3 frases, diga o que você ajustou e por quê, citando a rotina. Se nada precisou mudar, diga isso.',
 ].join('\n')
+
+/** Uma chamada à IA com saída JSON estruturada. `null` quando a resposta não é JSON legível. */
+export async function requestStructured<T>(params: { apiKey: string; instructions: string; input: string; format: unknown }): Promise<Partial<T> | null> {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST', headers: { authorization: `Bearer ${params.apiKey}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ model: PRI_MODEL, reasoning: { effort: 'low' }, max_output_tokens: 4000, store: false, instructions: params.instructions, input: params.input, text: { format: params.format } }),
+  })
+  const payload = await response.json() as OpenAIResponse
+  if (!response.ok) throw new Error(payload.error?.message ?? 'Falha ao consultar a IA')
+  const text = payload.output?.flatMap(item => item.content ?? []).filter(item => item.type === 'output_text').map(item => item.text ?? '').join('').trim()
+  try { return text ? JSON.parse(text) as Partial<T> : null } catch { return null }
+}
 
 /**
  * A Pri adapta um plano pronto à rotina de quem pede. Só propõe: quem grava os
@@ -105,16 +117,7 @@ export async function adaptRoutinePlan(params: {
     `ROTINA ATUAL (fuso ${profileR.data?.timezone ?? 'America/Sao_Paulo'}): ${routine.length > 0 ? JSON.stringify(routine) : 'nenhum compromisso informado'}`,
   ].join('\n\n')
 
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST', headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model: PRI_MODEL, reasoning: { effort: 'low' }, max_output_tokens: 4000, store: false, instructions: INSTRUCTIONS, input, text: { format: PLAN_FORMAT } }),
-  })
-  const payload = await response.json() as OpenAIResponse
-  if (!response.ok) throw new Error(payload.error?.message ?? 'Falha ao consultar a IA')
-
-  const text = payload.output?.flatMap(item => item.content ?? []).filter(item => item.type === 'output_text').map(item => item.text ?? '').join('').trim()
-  let parsed: { summary?: unknown; habits?: unknown } | null = null
-  try { parsed = text ? JSON.parse(text) as { summary?: unknown; habits?: unknown } : null } catch { parsed = null }
+  const parsed = await requestStructured<{ summary?: unknown; habits?: unknown }>({ apiKey, instructions: INSTRUCTIONS, input, format: PLAN_FORMAT })
 
   const habits = sanitizePlanHabits(parsed?.habits, window)
   if (habits.length === 0) return { ok: false, error: 'A Pri não conseguiu montar o plano agora. Tente de novo ou use o plano padrão.' }

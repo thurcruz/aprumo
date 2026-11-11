@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { adaptRoutinePlan } from '@/lib/routine-plan-engine'
 import { findRoutinePlan, parsePlanAnswers } from '@/lib/routine-plans'
+import { priErrorMessage } from '@/lib/pri'
 
 /** A Pri adapta um plano pronto à rotina. Devolve a prévia; gravar é com o cliente, depois da confirmação. */
 export async function POST(request: Request) {
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ habits: result.habits, summary: result.summary })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Pri indisponível' }, { status: 500 })
+    console.error('[pri:planos]', error)
+    return NextResponse.json({ error: priErrorMessage(error) }, { status: 500 })
   }
 }

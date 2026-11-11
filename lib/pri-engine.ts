@@ -2,6 +2,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from './database.types'
 import { CREDITS_PER_MESSAGE, resolvePlan, type SubscriptionStatus } from './billing'
+import { PRI_SCREEN_HINTS, PRI_VOICE_HINT, type PriScreen } from './priContext'
 
 type ToolName = 'create_task' | 'create_note' | 'create_transaction' | 'update_book_progress'
 export type ProposedAction = { name: ToolName; arguments: Record<string, unknown> }
@@ -20,10 +21,13 @@ export const PRI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-5.6-luna'
 
 /**
  * O pedágio de toda chamada à Pri — conversa, plano adaptado ou o que vier:
- * confere a assinatura, registra a tentativa no limite de taxa e gasta o
- * crédito, nessa ordem. Não desconta de quem só esbarrou no limite, e cobra
- * antes da IA (mais simples e mais seguro contra corrida entre pedidos
- * simultâneos do que cobrar só no sucesso).
+ * registra a tentativa no limite de taxa e gasta o crédito, nessa ordem. Não
+ * desconta de quem só esbarrou no limite, e cobra antes da IA (mais simples e
+ * mais seguro contra corrida entre pedidos simultâneos do que cobrar só no sucesso).
+ *
+ * Free também conversa: a carteira nasce com créditos de boas-vindas para o
+ * diagnóstico e o plano inicial. Acabando, Free é convidado ao Aprumo+ (o
+ * acompanhamento contínuo); Plus, a comprar mais créditos.
  */
 export async function chargePri(params: {
   supabase: SupabaseClient<Database>
@@ -32,13 +36,6 @@ export async function chargePri(params: {
   description: string
 }): Promise<{ ok: true } | { ok: false; error: string; code: PriGateCode }> {
   const { supabase, userId, channel, description } = params
-
-  // A Pri é 100% Aprumo+: sem assinatura ativa, nem a primeira mensagem sai.
-  const { data: subscription } = await supabase.from('subscriptions').select('status')
-    .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle()
-  if (resolvePlan(subscription?.status as SubscriptionStatus | undefined) !== 'plus') {
-    return { ok: false, error: 'A Pri é exclusiva do Aprumo+. Assine para conversar.', code: 'plan_required' }
-  }
 
   // Atômico via lock de linha (pri_register_attempt): duas mensagens simultâneas não passam juntas pelo limite.
   const { data: rateLimit, error: rateLimitError } = await supabase.rpc('pri_register_attempt', { p_user_id: userId })
@@ -50,8 +47,12 @@ export async function chargePri(params: {
     ? await supabase.rpc('spend_credits_for', { p_user_id: userId, p_amount: CREDITS_PER_MESSAGE, p_description: description })
     : await supabase.rpc('spend_credits', { p_amount: CREDITS_PER_MESSAGE, p_description: description })
   if (spendError) {
-    if (spendError.message.includes('INSUFFICIENT_CREDITS')) return { ok: false, error: 'Seus créditos deste ciclo acabaram.', code: 'insufficient_credits' }
-    throw spendError
+    if (!spendError.message.includes('INSUFFICIENT_CREDITS')) throw spendError
+    const { data: subscription } = await supabase.from('subscriptions').select('status')
+      .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    return resolvePlan(subscription?.status as SubscriptionStatus | undefined) === 'plus'
+      ? { ok: false, error: 'Seus créditos deste ciclo acabaram.', code: 'insufficient_credits' }
+      : { ok: false, error: 'Seu diagnóstico e plano inicial já estão com você. Para a Pri acompanhar e ajustar o plano conforme a vida acontece, assine o Aprumo+.', code: 'plan_required' }
   }
   return { ok: true }
 }
@@ -83,6 +84,10 @@ export async function answerPri(params: {
   message: string
   conversationId?: string | null
   channel: PriChannel
+  /** Tela de onde a Pri foi aberta (web): puxa o assunto para aquela área. */
+  screen?: PriScreen
+  /** A resposta vai ser falada: pede frases curtas e sem formatação. */
+  voice?: boolean
 }): Promise<PriResult> {
   const { supabase, userId, channel } = params
   const message = params.message.trim()
@@ -117,6 +122,7 @@ export async function answerPri(params: {
   const permissions = (profileR.data?.ai_permissions ?? {}) as Record<string, boolean>
   const eventMap = new Map((eventsR.data ?? []).map(event => [event.commitment_id, event]))
   const context: Record<string, unknown> = { today, timezone: 'America/Sao_Paulo', name: profileR.data?.display_name, purpose: profileR.data?.purpose }
+  if (params.screen && params.screen !== 'geral') context.screen = params.screen
   const sources: string[] = []
   if (permissions.tasks !== false) { context.commitments = (commitmentsR.data ?? []).map(item => ({ ...item, status_today: eventMap.get(item.id)?.status ?? 'pending' })); sources.push('commitments') }
   if (permissions.goals !== false) { context.goals = goalsR.data; sources.push('goals') }
@@ -127,7 +133,7 @@ export async function answerPri(params: {
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST', headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model: PRI_MODEL, reasoning: { effort: 'low' }, max_output_tokens: 700, store: false, tools: TOOLS, instructions: 'Você é a Pri, copiloto de evolução pessoal. Responda em português do Brasil. Use apenas o contexto autorizado. Para registrar ou alterar dados, use exatamente uma ferramenta; nunca afirme que gravou algo. A aplicação solicitará confirmação antes de executar. Em perguntas sobre o que falta hoje, exclua status_today completed. Datas e horários devem usar o fuso informado. Não diagnostique nem dê aconselhamento financeiro profissional.', input }),
+    body: JSON.stringify({ model: PRI_MODEL, reasoning: { effort: 'low' }, max_output_tokens: 700, store: false, tools: TOOLS, instructions: 'Você é a Pri, copiloto de evolução pessoal. Responda em português do Brasil. Use apenas o contexto autorizado. Para registrar ou alterar dados, use exatamente uma ferramenta; nunca afirme que gravou algo. A aplicação solicitará confirmação antes de executar. Em perguntas sobre o que falta hoje, exclua status_today completed. Datas e horários devem usar o fuso informado. Não diagnostique nem dê aconselhamento financeiro profissional.' + (params.screen && PRI_SCREEN_HINTS[params.screen] ? ` ${PRI_SCREEN_HINTS[params.screen]} Se o pedido for de outro assunto, atenda normalmente.` : '') + (params.voice ? ` ${PRI_VOICE_HINT}` : ''), input }),
   })
   const payload = await response.json() as OpenAIResponse
   if (!response.ok) throw new Error(payload.error?.message ?? 'Falha ao consultar a IA')

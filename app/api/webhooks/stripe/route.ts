@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { getStripe } from '@/lib/stripe'
-import { creditsForPrice, parsePriceCredits } from '@/lib/billing'
+import { creditsForPrice, parsePriceCredits, subscriptionOfInvoice } from '@/lib/billing'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 
 export const runtime = 'nodejs'
@@ -36,8 +36,8 @@ async function upsertSubscription(supabase: SupabaseAdmin, sub: Stripe.Subscript
 
 async function grantForInvoice(supabase: SupabaseAdmin, invoice: Stripe.Invoice) {
   const line = invoice.lines.data[0]
-  if (!line?.subscription) return // fatura avulsa, não de assinatura — nada a conceder aqui
-  const priceId = typeof line.pricing?.price_details?.price === 'string' ? line.pricing.price_details.price : line.pricing?.price_details?.price?.id
+  if (!subscriptionOfInvoice(invoice)) return // fatura avulsa, não de assinatura — nada a conceder aqui
+  const priceId = typeof line?.pricing?.price_details?.price === 'string' ? line.pricing.price_details.price : line?.pricing?.price_details?.price?.id
   const credits = creditsForPrice(parsePriceCredits(process.env.STRIPE_PRICE_CREDITS), priceId)
   if (!credits) { console.error('Stripe webhook: fatura paga sem crédito mapeado para o preço', priceId); return }
   const userId = await resolveUserId(supabase, idOf(invoice.customer))
@@ -55,9 +55,8 @@ async function grantForInvoice(supabase: SupabaseAdmin, invoice: Stripe.Invoice)
  * chega ao menos uma vez, mas não garante a ordem entre eles.
  */
 async function markPastDue(supabase: SupabaseAdmin, invoice: Stripe.Invoice) {
-  const line = invoice.lines.data[0]
-  if (!line?.subscription) return // fatura avulsa — sem assinatura para marcar
-  const subscriptionId = typeof line.subscription === 'string' ? line.subscription : line.subscription.id
+  const subscriptionId = subscriptionOfInvoice(invoice)
+  if (!subscriptionId) return // fatura avulsa — sem assinatura para marcar
   const { error } = await supabase.from('subscriptions').update({ status: 'past_due', updated_at: new Date().toISOString() })
     .eq('id', subscriptionId).neq('status', 'canceled') // não reabre uma assinatura já cancelada
   if (error) console.error('Stripe webhook: falha ao marcar pagamento em atraso', error.message)

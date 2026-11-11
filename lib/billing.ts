@@ -34,6 +34,32 @@ export function creditsForPrice(map: Map<string, number>, priceId: string | null
   return map.get(priceId) ?? null
 }
 
+/** O mínimo de uma fatura do Stripe que interessa para achar a assinatura dela. */
+export interface InvoiceLike {
+  parent?: { subscription_details?: { subscription?: string | { id: string } | null } | null } | null
+  lines?: { data?: Array<{
+    subscription?: string | { id: string } | null
+    parent?: { subscription_item_details?: { subscription?: string | null } | null } | null
+  }> }
+}
+
+const idOf = (value: string | { id: string } | null | undefined) => typeof value === 'string' ? value : value?.id ?? null
+
+/**
+ * A assinatura de uma fatura, ou null quando é avulsa. Desde a API 2025-03-31
+ * ("basil") o campo `lines.data[].subscription` não vem mais: a assinatura mora
+ * em `invoice.parent.subscription_details` (e na linha, em
+ * `parent.subscription_item_details`). Ler só o campo antigo fazia toda fatura
+ * de assinatura parecer avulsa — e os créditos do ciclo nunca eram concedidos.
+ * O campo antigo fica como último recurso, para eventos de versões anteriores.
+ */
+export function subscriptionOfInvoice(invoice: InvoiceLike): string | null {
+  const line = invoice.lines?.data?.[0]
+  return idOf(invoice.parent?.subscription_details?.subscription)
+    ?? line?.parent?.subscription_item_details?.subscription
+    ?? idOf(line?.subscription)
+}
+
 /** 1 crédito = 1 mensagem da Pri, web ou WhatsApp. */
 export const CREDITS_PER_MESSAGE = 1
 

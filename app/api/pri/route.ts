@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { answerPri, type ProposedAction } from '@/lib/pri-engine'
+import { isPriScreen } from '@/lib/priContext'
+import { priErrorMessage } from '@/lib/pri'
 
 async function auth() {
   const supabase = await createSupabaseServerClient()
@@ -58,7 +60,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await auth()
     if (!ctx) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-    const body = await request.json() as { message?: unknown; conversationId?: string; confirmMessageId?: string; confirm?: boolean }
+    const body = await request.json() as { message?: unknown; conversationId?: string; confirmMessageId?: string; confirm?: boolean; screen?: unknown; voice?: unknown }
 
     if (body.confirmMessageId) {
       const { data: pending, error } = await ctx.supabase.from('ai_messages').select('id,conversation_id,proposed_action,action_status').eq('id', body.confirmMessageId).eq('user_id', ctx.user.id).single()
@@ -83,13 +85,15 @@ export async function POST(request: Request) {
 
     // O miolo (assinatura, crédito, contexto, OpenAI, gravação) é compartilhado
     // com o canal do WhatsApp — ver lib/pri-engine.ts.
-    const result = await answerPri({ supabase: ctx.supabase, userId: ctx.user.id, message: body.message, conversationId: body.conversationId, channel: 'web' })
+    const result = await answerPri({ supabase: ctx.supabase, userId: ctx.user.id, message: body.message, conversationId: body.conversationId, channel: 'web', screen: isPriScreen(body.screen) ? body.screen : undefined, voice: body.voice === true })
     if (!result.ok) {
       const status = result.code === 'rate_limited' ? 429 : result.code ? 402 : 400
       return NextResponse.json({ error: result.error, code: result.code }, { status })
     }
     return NextResponse.json({ answer: result.answer, sources: result.sources, conversationId: result.conversationId, proposal: result.proposal, messageId: result.messageId })
   } catch(error) {
-    return NextResponse.json({error:error instanceof Error?error.message:'Pri indisponível'},{status:500})
+    // Registra a causa real no servidor: sem isso a falha some atrás de uma mensagem genérica.
+    console.error('[pri]', error)
+    return NextResponse.json({ error: priErrorMessage(error) }, { status: 500 })
   }
 }
