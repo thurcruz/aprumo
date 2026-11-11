@@ -15,7 +15,7 @@ export default function BottomNav() {
   return <>
     <div aria-hidden className="pointer-events-none fixed inset-x-0 bottom-0 z-30 h-36 bg-linear-to-t from-canvas via-canvas/80 to-transparent md:hidden"/>
     {/* theme-dark: a barra segue o menu lateral — sempre escura, também no tema claro. */}
-    <nav aria-label="Áreas" className="theme-dark fixed inset-x-3 bottom-[max(12px,env(safe-area-inset-bottom))] z-40 rounded-[28px] border border-white/10 bg-[rgb(20_20_22/.72)] shadow-[0_18px_50px_rgb(0_0_0/.35)] backdrop-blur-xl backdrop-saturate-150 md:hidden">
+    <nav aria-label="Menu principal" className="theme-dark fixed inset-x-3 bottom-[max(12px,env(safe-area-inset-bottom))] z-40 rounded-[28px] border border-white/10 bg-[rgb(20_20_22/.72)] shadow-[0_18px_50px_rgb(0_0_0/.35)] backdrop-blur-xl backdrop-saturate-150 md:hidden">
       <div className="mx-auto flex h-16 max-w-lg items-stretch justify-around px-1">
         {areaNav.map(item => {
           const active = isActive(pathname, item)

@@ -22,7 +22,7 @@ export const areaNav: NavItem[] = [
   { href: '/hoje', label: 'Hoje', icon: Sun, also: ['/foco', '/emocional'] },
   { href: '/pri', label: 'Pri', icon: Sparkles },
   { href: '/planos', label: 'Planos', icon: Route },
-  { href: '/extensoes', label: 'Extensões', icon: Blocks, also: ['/financas', '/treino', '/saude', '/mente', '/antivicio'] },
+  { href: '/extensoes', label: 'Áreas', icon: Blocks, also: ['/financas', '/treino', '/saude', '/mente', '/antivicio'] },
   { href: '/comunidade', label: 'Comunidade', icon: UsersRound, soon: !COMMUNITY_OPEN },
 ]
 

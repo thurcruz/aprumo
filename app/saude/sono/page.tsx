@@ -33,7 +33,7 @@ export default function SonoPage() {
   }
 
   return <div className="page-wrap">
-    <PageHeader back={{ href: '/extensoes', label: 'Extensões' }} title="Sono" description="Descanso também é treino. Registre quanto e como você dormiu — os padrões aparecem com o tempo."/>
+    <PageHeader back={{ href: '/extensoes', label: 'Áreas' }} title="Sono" description="Descanso também é treino. Registre quanto e como você dormiu — os padrões aparecem com o tempo."/>
     <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
       <section className="surface p-6">
         <p className="eyebrow">Registrar noite</p>

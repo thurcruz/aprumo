@@ -13,7 +13,7 @@ const interventions = [
   { icon: Brain, title: 'Adie a decisão', text: 'Espere 10 minutos. Você continua no controle.' },
 ]
 
-const back = { href: '/extensoes', label: 'Extensões' }
+const back = { href: '/extensoes', label: 'Áreas' }
 
 export default function Antivicio() {
   const { store, addAddiction, updateAddiction } = useAprumoStore()

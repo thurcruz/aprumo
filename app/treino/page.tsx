@@ -107,7 +107,7 @@ function TreinoContent() {
   const scheduledHabit = scheduling ? habitOf(scheduling) : undefined
 
   return <div className="page-wrap">
-    <PageHeader back={{ href: '/extensoes', label: 'Extensões' }} title="Treino" description="Monte a ficha uma vez. Depois é entrar, executar e sair — a carga da última vez já vem sugerida."
+    <PageHeader back={{ href: '/extensoes', label: 'Áreas' }} title="Treino" description="Monte a ficha uma vez. Depois é entrar, executar e sair — a carga da última vez já vem sugerida."
       actions={<Button icon={<Plus size={17}/>} onClick={() => setEditing('nova')}>Ficha</Button>}/>
 
     {finished && <div className="surface mb-6 flex items-center gap-3 p-4" style={{ borderColor: 'rgba(208,224,39,.4)' }}>

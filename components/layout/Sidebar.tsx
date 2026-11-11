@@ -36,8 +36,8 @@ export default function Sidebar() {
       <Logo height={26}/>
     </Link>
     <div className="sidebar-menu-scroll min-h-0 flex-1 overflow-y-auto">
-      <p className="mb-1.5 px-3 text-label uppercase text-fg-3">Áreas</p>
-      <nav aria-label="Áreas" className="space-y-0.5">{areaNav.map(link)}</nav>
+      <p className="mb-1.5 px-3 text-label uppercase text-fg-3">Menu</p>
+      <nav aria-label="Menu principal" className="space-y-0.5">{areaNav.map(link)}</nav>
       <p className="mb-1.5 mt-6 px-3 text-label uppercase text-fg-3">Sistema</p>
       <nav aria-label="Sistema" className="space-y-0.5">{systemNav.map(link)}</nav>
     </div>

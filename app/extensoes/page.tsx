@@ -30,7 +30,7 @@ export default function ExtensoesPage() {
   }
 
   return <div className="page-wrap">
-    <PageHeader title="Extensões" description="Módulos opcionais para quando fizer sentido. O essencial — seu plano, hábitos, agenda e foco — continua em Hoje."/>
+    <PageHeader title="Áreas" description="Ligue só o que faz parte da sua vida agora. O que você ligar aparece no menu e no seu dia."/>
     {active.length > 0 && <section>
       <SectionHeader className="mb-3" as="h3" title="Ativas"/>
       <div className="grid gap-3 md:grid-cols-2">{active.map(item => card(item, true))}</div>
