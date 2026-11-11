@@ -976,6 +976,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           display_name: string | null
+          extensions: Json
           id: string
           notification_prefs: Json
           purpose: string
@@ -990,6 +991,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          extensions?: Json
           id: string
           notification_prefs?: Json
           purpose?: string
@@ -1004,6 +1006,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          extensions?: Json
           id?: string
           notification_prefs?: Json
           purpose?: string

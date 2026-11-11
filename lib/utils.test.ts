@@ -3,7 +3,7 @@ import type { Goal, Task, TaskEvent } from './types'
 import {
   daysBetween, describeFrequency, describeSpan, endFrom, endTimeOf, habitExpired, habitRunsOn,
   indexEvents, isDoneOn, isoDate, minutesBetween, nextDay, parseDate, taskDay, taskShowsOn, weekStart,
-  deadlineState, describeDeadline, goalAlert, goalConsistency, goalProgress,
+  deadlineState, describeDeadline, goalAlert, goalConsistency, goalProgress, isSameMonth,
 } from './utils'
 
 const task = (patch: Partial<Task> = {}): Task => ({
@@ -346,5 +346,18 @@ describe('devido × feito', () => {
       { taskId: 'novo', date: '2026-09-09', status: 'completed' },
     ])
     expect(goalConsistency([fresh], index, '2026-09-09', 30)).toBe(100)
+  })
+})
+
+describe('mês do calendário', () => {
+  const setembro2026 = new Date(2026, 8, 16)
+  it('conta o que é do mesmo mês e ano', () => {
+    expect(isSameMonth(new Date(2026, 8, 1, 9).toISOString(), setembro2026)).toBe(true)
+  })
+  it('não mistura o mesmo mês de outro ano', () => {
+    expect(isSameMonth(new Date(2025, 8, 20, 9).toISOString(), setembro2026)).toBe(false)
+  })
+  it('não mistura meses vizinhos', () => {
+    expect(isSameMonth(new Date(2026, 7, 31, 9).toISOString(), setembro2026)).toBe(false)
   })
 })

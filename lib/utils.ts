@@ -165,6 +165,12 @@ export function capitalizeFirst(text: string): string {
   return text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1)
 }
 
+/** Mesmo mês do calendário — ano incluído, senão setembro passado entra no saldo deste setembro. */
+export function isSameMonth(value: string, reference: Date): boolean {
+  const date = new Date(value)
+  return date.getFullYear() === reference.getFullYear() && date.getMonth() === reference.getMonth()
+}
+
 export function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })

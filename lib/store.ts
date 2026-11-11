@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { AprumoStore, Task, TaskEvent, Goal, Transaction, FinancialGoal, Addiction, WorkoutPlan, WorkoutLog, Book, Note, MoodEntry, RepertoireItem, SleepEntry, FocusSession } from './types'
 import { isoDate, nextDay } from './utils'
 import { parsePlanExercises } from './workout'
+import type { ExtensionChoices, ExtensionId } from './extensions'
 
 const STORAGE_KEY = 'aprumo-store'
 const VERSION_KEY = 'aprumo-store-version'
@@ -18,6 +19,7 @@ const initialData: AprumoStore = {
   metrics: { streak: 0, completedCommitments: 0, totalCommitments: 0, carriedCommitments: 0, completedGoals: 0, periodDays: 30, lifetimeCompleted: 0 },
   userName: '',
   purpose: '',
+  extensions: {},
   tasks: [],
   taskEvents: [],
   goals: [],
@@ -59,15 +61,15 @@ function saveStore(data: AprumoStore) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
 }
 
-async function loadProfile(): Promise<{ userName?: string; purpose?: string } | null> {
+async function loadProfile(): Promise<{ userName?: string; purpose?: string; extensions?: ExtensionChoices } | null> {
   if (!BACKEND_ENABLED) return null
   const response = await fetch('/api/profile', { cache: 'no-store' })
   if (!response.ok) return null
-  const data = await response.json() as { profile?: { display_name?: string | null; purpose?: string | null } }
-  return { userName: data.profile?.display_name ?? undefined, purpose: data.profile?.purpose ?? undefined }
+  const data = await response.json() as { profile?: { display_name?: string | null; purpose?: string | null; extensions?: ExtensionChoices } }
+  return { userName: data.profile?.display_name ?? undefined, purpose: data.profile?.purpose ?? undefined, extensions: data.profile?.extensions }
 }
 
-function saveProfile(payload: { displayName?: string; purpose?: string }) {
+function saveProfile(payload: { displayName?: string; purpose?: string; extensions?: ExtensionChoices }) {
   if (!BACKEND_ENABLED) return
   void fetch('/api/profile', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     .then((response) => { if (!response.ok) throw new Error(String(response.status)) })
@@ -118,7 +120,7 @@ export function useAprumoStore() {
         const domains = await loadDomains()
         if (domains) next = { ...next, ...domains }
         const profile = await loadProfile()
-        if (profile) next = { ...next, userName: profile.userName ?? next.userName, purpose: profile.purpose ?? next.purpose }
+        if (profile) next = { ...next, userName: profile.userName ?? next.userName, purpose: profile.purpose ?? next.purpose, extensions: profile.extensions ?? next.extensions }
       } catch { /* Offline-first: local state remains available. */ }
       if (active) { setStore(next); saveStore(next); setHydrated(true) }
     })
@@ -133,7 +135,8 @@ export function useAprumoStore() {
     })
   }, [])
 
-  const addTask = useCallback((task: Task) => { update((s) => ({ ...s, tasks: [...s.tasks, task] })); void syncCore('addTask', { task }).catch(() => undefined) }, [update])
+  /** Devolve a sincronização: quem vai sair da tela logo em seguida pode esperá-la. */
+  const addTask = useCallback((task: Task) => { update((s) => ({ ...s, tasks: [...s.tasks, task] })); return syncCore('addTask', { task }) }, [update])
   const updateTask = useCallback((task: Task, eventDate?: string) => { update((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === task.id ? task : t)) })); void syncCore('updateTask', { task, eventDate }).catch(() => undefined) }, [update])
   const deleteTask = useCallback((id: string) => { update((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) })); void syncCore('deleteTask', { id }).catch(() => undefined) }, [update])
 
@@ -172,7 +175,7 @@ export function useAprumoStore() {
     }))
     void syncCore('carryTask', { task, eventDate: from })  }, [update])
 
-  const addGoal = useCallback((goal: Goal) => { update((s) => ({ ...s, goals: [...s.goals, goal] })); void syncCore('addGoal', { goal }).catch(() => undefined) }, [update])
+  const addGoal = useCallback((goal: Goal) => { update((s) => ({ ...s, goals: [...s.goals, goal] })); return syncCore('addGoal', { goal }) }, [update])
   const updateGoal = useCallback((goal: Goal) => { update((s) => ({ ...s, goals: s.goals.map((g) => (g.id === goal.id ? goal : g)) })); void syncCore('updateGoal', { goal }).catch(() => undefined) }, [update])
   const deleteGoal = useCallback((id: string) => { update((s) => ({ ...s, goals: s.goals.filter((g) => g.id !== id) })); void syncCore('deleteGoal', { id }).catch(() => undefined) }, [update])
 
@@ -212,6 +215,7 @@ export function useAprumoStore() {
   })), [update])
   const setPurpose = useCallback((p: string) => { update((s) => ({ ...s, purpose: p })); saveProfile({ purpose: p }) }, [update])
   const setUserName = useCallback((n: string) => { update((s) => ({ ...s, userName: n })); saveProfile({ displayName: n }) }, [update])
+  const setExtension = useCallback((id: ExtensionId, active: boolean) => { update((s) => ({ ...s, extensions: { ...s.extensions, [id]: active } })); saveProfile({ extensions: { [id]: active } }) }, [update])
   const addFinancialGoal = useCallback((fg: FinancialGoal) => {update((s) => ({ ...s, financialGoals: [...(s.financialGoals ?? []), fg] }));void syncDomain('addFinancialGoal',{financialGoal:fg})}, [update])
   const updateFinancialGoal = useCallback((fg: FinancialGoal) => {update((s) => ({ ...s, financialGoals: (s.financialGoals ?? []).map((x) => (x.id === fg.id ? fg : x)) }));void syncDomain('updateFinancialGoal',{financialGoal:fg})}, [update])
 
@@ -250,6 +254,7 @@ export function useAprumoStore() {
     setPurpose,
     applyProfile,
     setUserName,
+    setExtension,
     addFinancialGoal,
     updateFinancialGoal,
     deleteFinancialGoal,

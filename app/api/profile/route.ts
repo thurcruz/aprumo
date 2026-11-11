@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { parseExtensionChoices } from '@/lib/extensions'
 
 const permissionKeys = ['tasks', 'goals', 'books', 'moods', 'finance', 'antivicio'] as const
 /** Avisos que a pessoa escolhe receber. Os envios chegam com os lembretes pelo WhatsApp. */
@@ -38,6 +39,7 @@ export async function GET() {
         avatar_url: data.avatar_url ?? null,
         timezone: data.timezone ?? null,
         notification_prefs: data.notification_prefs ?? null,
+        extensions: parseExtensionChoices(data.extensions),
         // A vinculação em si não passa por aqui: é a rota /api/whatsapp/link,
         // que exige prova de posse do número (o código recebido no WhatsApp).
         whatsapp_phone_e164: data.whatsapp_phone_e164 ?? null,
@@ -51,7 +53,7 @@ export async function PUT(request: Request) {
   try {
     const context = await authenticatedContext()
     if (!context) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-    const body = await request.json() as { displayName?: unknown; purpose?: unknown; aiPermissions?: unknown; avatarUrl?: unknown; timezone?: unknown; notificationPrefs?: unknown }
+    const body = await request.json() as { displayName?: unknown; purpose?: unknown; aiPermissions?: unknown; avatarUrl?: unknown; timezone?: unknown; notificationPrefs?: unknown; extensions?: unknown }
     const update: {
       display_name?: string
       purpose?: string
@@ -59,8 +61,17 @@ export async function PUT(request: Request) {
       avatar_url?: string | null
       timezone?: string
       notification_prefs?: Record<string, boolean>
+      extensions?: Record<string, boolean>
       updated_at: string
     } = { updated_at: new Date().toISOString() }
+    if (body.extensions !== undefined) {
+      // Parcial: cada aparelho manda só o que mudou, e o resto das escolhas fica.
+      const changes = parseExtensionChoices(body.extensions)
+      const { data: current, error: currentError } = await context.supabase.from('profiles').select('extensions').eq('id', context.user.id).single()
+      if (currentError?.code === 'PGRST204' || currentError?.code === '42703') return NextResponse.json({ error: 'O servidor ainda não tem o campo de extensões. Nada foi salvo.', code: 'not_ready' }, { status: 503 })
+      if (currentError) return NextResponse.json({ error: currentError.message }, { status: 500 })
+      update.extensions = { ...parseExtensionChoices(current.extensions), ...changes }
+    }
     if (body.displayName !== undefined) {
       if (typeof body.displayName !== 'string' || body.displayName.trim().length < 2 || body.displayName.trim().length > 60) return NextResponse.json({ error: 'O nome precisa ter entre 2 e 60 letras.' }, { status: 400 })
       update.display_name = body.displayName.trim()

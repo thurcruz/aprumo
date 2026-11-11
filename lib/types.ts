@@ -1,3 +1,5 @@
+import type { ExtensionChoices } from './extensions'
+
 export type TaskCategory = 'fixa' | 'hoje' | 'repasse'
 
 /** Blocos do dia. `livre` = sem período definido (o padrão). */
@@ -293,6 +295,8 @@ export interface AprumoStore {
   focusSessions: FocusSession[]
   userName: string
   purpose: string
+  /** Escolhas explícitas de extensões. Ausente = decide pelo uso (lib/extensions.ts). */
+  extensions: ExtensionChoices
   metrics: EvolutionMetrics
 }
 

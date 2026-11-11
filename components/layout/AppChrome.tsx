@@ -15,5 +15,5 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
   useEffect(() => watchTheme(), [])
   const isPublic = publicRoutes.has(usePathname())
   if (isPublic) return <>{children}</>
-  return <div className="app-shell md:pl-[264px]"><Sidebar/><main><TopBar/>{children}</main><BottomNav/><PriLauncher/></div>
+  return <div className="app-shell md:pl-60"><Sidebar/><main><TopBar/>{children}</main><BottomNav/><PriLauncher/></div>
 }

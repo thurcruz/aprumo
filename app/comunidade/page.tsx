@@ -1,8 +1,14 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { FormEvent, Suspense, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Check, Flame, Plus, Trash2, Trophy, UsersRound, Vote, WifiOff } from 'lucide-react'
+import { Check, Flame, Plus, Trash2, Trophy, UsersRound, Vote, WifiOff, type LucideIcon } from 'lucide-react'
+import Badge from '@/components/ui/Badge'
+import Card from '@/components/ui/Card'
+import EmptyState from '@/components/ui/EmptyState'
+import PageHeader from '@/components/ui/PageHeader'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import { castVote, getCommunityServerSnapshot, getCommunitySnapshot, subscribeCommunity } from '@/lib/community'
 import { tally, voteFeatures } from '@/lib/votes'
 import { deletePost, getFeedServerSnapshot, getFeedSnapshot, subscribeFeed } from '@/lib/feed'
@@ -19,16 +25,20 @@ const tabs = [
 ] as const
 type TabId = (typeof tabs)[number]['id']
 
-function EmptyState({ icon: Icon, title, description, action }: { icon: typeof Trophy; title: string; description: string; action?: string }) {
-  return <div className="surface flex flex-col items-center gap-3 p-10 text-center">
-    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-white/50"><Icon size={22}/></span>
-    <div><p className="font-semibold">{title}</p><p className="muted mx-auto mt-1 max-w-sm text-sm">{description}</p></div>
-    {action && <span className="muted rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-wider">{action}</span>}
-  </div>
+/** O estado vazio do Design System dentro de um card, com o selo opcional ("Em breve"). */
+function EmptyCard({ icon, title, description, action }: { icon: LucideIcon; title: string; description: string; action?: string }) {
+  return <Card padding="none"><EmptyState icon={icon} title={title} description={description} action={action && <Badge>{action}</Badge>}/></Card>
 }
 
-export default function Comunidade() {
-  const [tab, setTab] = useState<TabId>('mural')
+// useSearchParams() exige um limite de Suspense para a página poder ser pré-renderizada.
+export default function ComunidadePage() {
+  return <Suspense fallback={null}><Comunidade/></Suspense>
+}
+
+function Comunidade() {
+  // ?aba=desafios abre direto numa aba.
+  const requested = useSearchParams().get('aba')
+  const [tab, setTab] = useState<TabId>(() => tabs.find(item => item.id === requested)?.id ?? 'mural')
   const state = useSyncExternalStore(subscribeCommunity, getCommunitySnapshot, getCommunityServerSnapshot)
   /** O placar só existe depois do voto — o servidor não o entrega antes. */
   const results = useMemo(() => state.counts ? tally(state.counts) : null, [state.counts])
@@ -51,22 +61,16 @@ export default function Comunidade() {
   }
 
   return <div className="page-wrap">
-    <header className="mb-8">
-      <p className="eyebrow">Comunidade</p>
-      <h1 className="display mt-3 max-w-2xl text-4xl font-semibold md:text-6xl">Evolua por você.<br/>Não sozinho.</h1>
-      <p className="muted mt-4 max-w-xl">Comunidade não é um extra. Aqui você entra em desafios, participa de círculos e decide o que Aprumo constrói em seguida.</p>
-    </header>
+    <PageHeader title="Comunidade" description="Evolua por você, não sozinho. Entre em desafios, participe de círculos e decida o que o Aprumo constrói em seguida."/>
 
-    <nav className="mb-7 flex gap-2 overflow-x-auto pb-1">
-      {tabs.map(item => <button key={item.id} onClick={() => setTab(item.id)} className="shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition" style={{ borderColor: tab === item.id ? 'var(--energy)' : 'var(--line)', background: tab === item.id ? 'var(--energy)' : 'transparent', color: tab === item.id ? '#11130f' : 'var(--muted)' }}>{item.label}</button>)}
-    </nav>
+    <SegmentedControl className="mb-6" label="Seções da comunidade" value={tab} onChange={setTab} options={tabs.map(item => ({ value: item.id, label: item.label }))}/>
 
     <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       {tab === 'mural' && <div className="space-y-3">
         {feed.status === 'local' && <p className="muted rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)' }}>Modo local: sem servidor configurado, o mural não fica disponível.</p>}
         {feed.status === 'unavailable' && <p className="muted rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)' }}>O mural ainda não foi ativado no servidor.</p>}
         {feed.status === 'offline' && feed.posts.length === 0 && <p className="flex items-center gap-2 rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)', color: 'var(--muted)' }}><WifiOff size={14} className="shrink-0"/> Não conseguimos falar com o servidor agora.</p>}
-        {(feed.status === 'ready' || feed.status === 'offline') && feed.posts.length === 0 && <EmptyState
+        {(feed.status === 'ready' || feed.status === 'offline') && feed.posts.length === 0 && <EmptyCard
           icon={Flame}
           title="Ninguém publicou ainda"
           description="Quando você concluir uma sessão de foco de pelo menos 5 minutos, pode compartilhar aqui."
@@ -88,7 +92,7 @@ export default function Comunidade() {
         {challenges.status === 'unavailable' && <p className="muted rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)' }}>Os desafios ainda não foram ativados no servidor.</p>}
         {challenges.status === 'offline' && challenges.challenges.length === 0 && <p className="flex items-center gap-2 rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)', color: 'var(--muted)' }}><WifiOff size={14} className="shrink-0"/> Não conseguimos falar com o servidor agora.</p>}
         {challenges.error && <p className="rounded-2xl border p-3 text-xs" style={{ borderColor: 'rgba(255,107,107,.35)', color: 'var(--danger)' }}>{challenges.error}</p>}
-        {(challenges.status === 'ready' || challenges.status === 'offline') && challenges.challenges.length === 0 && <EmptyState
+        {(challenges.status === 'ready' || challenges.status === 'offline') && challenges.challenges.length === 0 && <EmptyCard
           icon={Trophy}
           title="Nenhum desafio ativo"
           description="Os desafios oficiais aparecem aqui assim que forem publicados. Você entra, faz check-in e acompanha seu progresso."
@@ -125,7 +129,7 @@ export default function Comunidade() {
         {circles.status === 'unavailable' && <p className="muted rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)' }}>Os círculos ainda não foram ativados no servidor.</p>}
         {circles.status === 'offline' && circles.circles.length === 0 && <p className="flex items-center gap-2 rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)', color: 'var(--muted)' }}><WifiOff size={14} className="shrink-0"/> Não conseguimos falar com o servidor agora.</p>}
         {circles.error && <p className="rounded-2xl border p-3 text-xs" style={{ borderColor: 'rgba(255,107,107,.35)', color: 'var(--danger)' }}>{circles.error}</p>}
-        {(circles.status === 'ready' || circles.status === 'offline') && circles.circles.length === 0 && <EmptyState
+        {(circles.status === 'ready' || circles.status === 'offline') && circles.circles.length === 0 && <EmptyCard
           icon={UsersRound}
           title="Você ainda não está em nenhum círculo"
           description="Círculos são grupos por interesse — corrida, leitura, faculdade, projetos. Cada um com seu próprio espaço."
@@ -152,6 +156,7 @@ export default function Comunidade() {
           <button disabled={circles.creating || !newCircleName.trim()} className="energy-button inline-flex w-fit items-center gap-1.5 px-4 py-2 text-sm disabled:opacity-50"><Plus size={16}/> {circles.creating ? 'Criando…' : 'Criar'}</button>
         </form>
       </div>}
+
 
       {tab === 'votacao' && <div className="space-y-5">
         <section className="surface p-6">

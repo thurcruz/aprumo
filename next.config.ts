@@ -14,12 +14,16 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: '/dashboard', destination: '/hoje', permanent: true },
-      { source: '/corpo', destination: '/saude', permanent: false },
+      { source: '/corpo', destination: '/extensoes', permanent: false },
       { source: '/corpo/:path*', destination: '/saude/:path*', permanent: false },
+      // Saúde deixou de ser área: Treino, Sono e Antivício viraram extensões. /saude/sono continua existindo.
+      { source: '/saude', destination: '/extensoes', permanent: false },
       { source: '/conhecimento', destination: '/mente', permanent: true },
       { source: '/financeiro', destination: '/financas', permanent: true },
       { source: '/goat-ai', destination: '/pri', permanent: true },
       { source: '/apri', destination: '/pri', permanent: true },
+      // Planos saíram da Comunidade e viraram destino próprio. Temporário (307): a casa dos planos já mudou antes.
+      { source: '/comunidade', has: [{ type: 'query', key: 'aba', value: 'planos' }], destination: '/planos', permanent: false },
     ];
   },
 };
