@@ -15,9 +15,8 @@ import GoalsView from '@/components/today/GoalsView'
 import HabitsView from '@/components/today/HabitsView'
 import HabitDialog, { type HabitDraft } from '@/components/modules/HabitDialog'
 import TimeDialog from '@/components/modules/TimeDialog'
-import { extensionIcons } from '@/components/modules/extensionIcons'
+import Skeleton from '@/components/ui/Skeleton'
 import { currentDiagnosisPlan } from '@/lib/diagnosis'
-import { EXTENSIONS, isExtensionActive } from '@/lib/extensions'
 import { focusHref, focusMinutesByTask } from '@/lib/focus'
 
 const moods = ['😞','😕','😐','🙂','🔥'] as const
@@ -33,6 +32,12 @@ const views = [
 ] as const
 type View = (typeof views)[number]['value']
 const isView = (value: string | null): value is View => views.some(item => item.value === value)
+
+/** O período em que a pessoa está agora: é onde a tarefa nova cai. */
+function currentBlock(): DayBlock {
+  const hour = new Date().getHours()
+  return hour < 12 ? 'manha' : hour < 18 ? 'tarde' : 'noite'
+}
 
 // useSearchParams() exige um limite de Suspense para a página poder ser pré-renderizada.
 export default function HojePage() {
@@ -59,7 +64,7 @@ function DayView({ tabs }: { tabs: ReactNode }) {
   const { store, hydrated, addTask, updateTask, deleteTask, carryTask, setTaskDone, addMood } = useAprumoStore()
   const today = iso(new Date())
   const [selected, setSelected] = useState(today)
-  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [draft, setDraft] = useState('')
   const [openMenu, setOpenMenu] = useState<string|null>(null)
   const [linking, setLinking] = useState<string|null>(null)
   const [renaming, setRenaming] = useState<string|null>(null)
@@ -107,13 +112,16 @@ function DayView({ tabs }: { tabs: ReactNode }) {
   const planToday = plan?.today ?? []
   const planDoneToday = planToday.filter(task => doneOn(task, today)).length
   const nextAction = planToday.find(task => !doneOn(task, today))
-  const extensionLinks = EXTENSIONS.filter(item => isExtensionActive(item.id, store.extensions, store))
 
-  function create(block: DayBlock) {
-    const title = (drafts[block] ?? '').trim()
+  /**
+   * Um campo só para adicionar. Hoje, a tarefa entra no período em que a pessoa
+   * está; em outro dia, fica sem horário. Dá para arrastar depois.
+   */
+  function create() {
+    const title = draft.trim()
     if (title.length < 2) return
-    addTask({ id: crypto.randomUUID(), title, category: 'hoje', completed: false, createdAt: new Date().toISOString(), dayBlock: block, priority: 2, source: 'manual', scheduledDate: selected })
-    setDrafts(d => ({ ...d, [block]: '' }))
+    addTask({ id: crypto.randomUUID(), title, category: 'hoje', completed: false, createdAt: new Date().toISOString(), dayBlock: isToday ? currentBlock() : 'livre', priority: 2, source: 'manual', scheduledDate: selected })
+    setDraft('')
   }
 
   const toggle = (task: Task) => setTaskDone(task, selected, !doneOn(task, selected))
@@ -286,37 +294,33 @@ function DayView({ tabs }: { tabs: ReactNode }) {
       <Link href={`/hoje?visao=agenda&dia=${selected}`} aria-label="Abrir agenda" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border no-underline" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}><CalendarDays size={18}/></Link>
     </section>
 
-    {extensionLinks.length > 0 && <nav className="mb-5 grid grid-cols-2 gap-3">
-      {extensionLinks.map(item => ({ href: item.pages[0].href, label: item.label, icon: extensionIcons[item.id] }))
-        .map(({ href, label, icon: Icon }) => <Link key={href} href={href} className="surface flex items-center gap-3 p-4 text-white no-underline"><Icon size={18} className="shrink-0 text-energy"/><span className="text-sm font-semibold">{label}</span></Link>)}
-    </nav>}
-
-    {visible.length > 0 && <button onClick={() => setMinimalDay(v => !v)} className="surface mb-5 flex w-full items-center gap-3 p-4 text-left" style={{ borderColor: minimalDay ? 'rgba(208,224,39,.5)' : undefined }}>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-energy/10 text-energy"><Circle size={16}/></span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold">{minimalDay ? 'Dia mínimo ativado' : 'Hoje está difícil?'}</p>
-        <p className="muted text-xs">{minimalDay
-          ? essentials.length > 0 ? `Preservando ${essentials.length} ${essentials.length === 1 ? 'ação essencial' : 'ações essenciais'}. O resto pode esperar.` : 'Marque de 1 a 3 ações como essenciais na estrela.'
-          : 'Ative o dia mínimo e preserve só o essencial. Rotina perfeita não existe.'}</p>
-      </div>
-    </button>}
+    <form onSubmit={event => { event.preventDefault(); create() }} className="mb-4 flex items-center gap-2">
+      <input value={draft} onChange={event => setDraft(event.target.value)} maxLength={160} aria-label="Nova tarefa"
+        placeholder={isToday ? 'O que precisa acontecer hoje?' : 'O que precisa acontecer nesse dia?'} className="field py-3 text-sm"/>
+      <button type="submit" disabled={draft.trim().length < 2} aria-label="Adicionar" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-energy text-[#11130f] transition-opacity disabled:opacity-40"><Plus size={18}/></button>
+    </form>
 
     {/* grid-cols-1 (minmax(0,1fr)): sem ele, um título longo alarga a coluna além da tela no celular. */}
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {dayBlocks.map(block => {
+    {!hydrated
+      ? <div className="grid grid-cols-1 gap-2">{[0, 1, 2].map(index => <Skeleton key={index} className="h-12"/>)}</div>
+      : visible.length === 0
+        ? <p className="muted rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm">{isToday ? 'Nada para hoje ainda. Escreva acima a primeira coisa que importa.' : 'Nada marcado nesse dia.'}</p>
+        : null}
+    <div className="grid grid-cols-1 gap-3">
+      {hydrated && dayBlocks.filter(block => grouped[block.id].length > 0 || isDragging).map(block => {
         const tasks = grouped[block.id]
         const isTarget = drag?.over === block.id
         return <section key={block.id}
           ref={element => { if (element) blockEls.current.set(block.id, element); else blockEls.current.delete(block.id) }}
-          className="surface p-5 transition"
+          className="surface p-4 transition"
           style={{ borderColor: isTarget ? 'var(--energy)' : undefined, background: isTarget ? 'rgba(208,224,39,.04)' : undefined }}>
-          <div className="mb-4 flex items-baseline justify-between">
-            <h2 className="font-semibold">{block.label}</h2>
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold">{block.label}</h2>
             <span className="muted text-xs">{tasks.filter(task => doneOn(task, selected)).length}/{tasks.length}</span>
           </div>
 
           <div className="space-y-2">
-            {tasks.length === 0 && <p className="muted rounded-2xl border border-dashed border-white/10 p-4 text-center text-xs">Nada aqui ainda</p>}
+            {tasks.length === 0 && <p className="muted rounded-2xl border border-dashed border-white/10 p-4 text-center text-xs">Solte aqui</p>}
             {tasks.map(task => {
               const completed = doneOn(task, selected)
               const dimmed = minimalDay && task.priority !== 1 && !completed
@@ -389,22 +393,23 @@ function DayView({ tabs }: { tabs: ReactNode }) {
             })}
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
-            <input value={drafts[block.id] ?? ''} onChange={event => setDrafts(d => ({ ...d, [block.id]: event.target.value }))}
-              onKeyDown={event => { if (event.key === 'Enter') create(block.id) }}
-              placeholder="Adicionar…" maxLength={160} className="field py-2 text-sm"/>
-            <button onClick={() => create(block.id)} aria-label={`Adicionar em ${block.label}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-energy text-[#11130f]"><Plus size={17}/></button>
-          </div>
         </section>
       })}
     </div>
 
-    <section className="surface mt-5 p-6">
+    {hydrated && visible.length > 0 && <button onClick={() => setMinimalDay(v => !v)} className="mt-3 flex w-full items-center gap-2 rounded-2xl px-1 py-2 text-left text-xs" style={{ color: minimalDay ? 'var(--accent)' : 'var(--muted)' }}>
+      <Circle size={13} fill={minimalDay ? 'currentColor' : 'none'}/>
+      {minimalDay
+        ? essentials.length > 0 ? `Dia mínimo: só ${essentials.length === 1 ? 'a ação essencial' : `as ${essentials.length} ações essenciais`}. Toque para voltar ao normal.` : 'Dia mínimo: marque de 1 a 3 ações como essenciais na estrela.'
+        : 'Hoje está difícil? Ative o dia mínimo e preserve só o essencial.'}
+    </button>}
+
+    <section className="surface mt-5 p-5">
       <div className="flex items-center justify-between">
         <p className="eyebrow">Como você está{isToday ? ' hoje' : ' nesse dia'}?</p>
         {selectedMood && <span className="muted text-xs">Registrado</span>}
       </div>
-      <div className="mt-5 flex justify-between">
+      <div className="mt-4 flex justify-between">
         {moods.map((mood, index) => {
           const level = (index + 1) as 1|2|3|4|5
           const active = selectedMood === level
@@ -418,10 +423,7 @@ function DayView({ tabs }: { tabs: ReactNode }) {
         onBlur={event => { const note = event.target.value.trim(); if (note !== (moodEntry.note ?? '')) addMood({ ...moodEntry, note }) }}
         onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
         placeholder="O que pode ter influenciado? (opcional)" className="field mt-5 py-2 text-sm"/>}
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="muted text-xs">{selectedMood ? 'Pode trocar quando quiser — vale o que você sente agora.' : 'Leva 2 segundos e ajuda a entender seus padrões.'}</p>
-        {store.moods.length > 0 && <Link href="/emocional" className="shrink-0 text-xs text-energy no-underline">Ver registros</Link>}
-      </div>
+      {store.moods.length > 1 && <Link href="/emocional" className="mt-4 inline-block text-xs text-energy no-underline">Ver registros</Link>}
     </section>
 
     {drag && <div className="glass pointer-events-none fixed z-[60] max-w-56 truncate rounded-2xl px-3 py-2 text-sm font-semibold" style={{ left: drag.x + 14, top: drag.y - 18 }}>
