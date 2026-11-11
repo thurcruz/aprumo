@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowUpRight, BookOpen, Camera, Check, CheckSquare, Dumbbell, Edit3, Flag, Flame, Moon, Settings, Smile, Target, Timer, Trophy, X } from 'lucide-react'
+import { ArrowUpRight, BookOpen, Camera, Check, CheckSquare, Dumbbell, Edit3, Flag, Flame, Moon, Settings, Smile, Target, Timer, Trophy } from 'lucide-react'
 import { useAprumoStore } from '@/lib/store'
 import { useToday } from '@/lib/useToday'
 import { initialsOf, updateProfile, useProfile } from '@/lib/profile'
@@ -12,6 +12,9 @@ import { areaStats, consistencyOf, crossInsights, dailyScores, delta, heatmap, s
 import { indexEvents } from '@/lib/utils'
 import { computeXp } from '@/lib/xp'
 import { PlusGate } from '@/components/plus/PlusGate'
+import Button from '@/components/ui/Button'
+import PageHeader from '@/components/ui/PageHeader'
+import Sheet from '@/components/ui/Sheet'
 
 const BACKEND_ENABLED = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 const HEAT_WEEKS = 20
@@ -156,10 +159,8 @@ export default function PerfilPage() {
   ] : []
 
   return <div className="page-wrap profile-page">
-    <header className="profile-header">
-      <div><p className="eyebrow">Minha evolução</p><h1 className="display mt-3 text-4xl font-semibold md:text-6xl">O reflexo da sua<br/><span>constância.</span></h1></div>
-      <Link href="/configuracoes" className="profile-settings"><Settings size={17}/> Configurações</Link>
-    </header>
+    <PageHeader title="Minha evolução" description="O reflexo da sua constância."
+      actions={<Link href="/configuracoes" aria-label="Configurações" className="grid h-11 w-11 place-items-center rounded-full border border-line text-fg-2 no-underline transition-colors hover:border-line-strong hover:text-fg-1"><Settings size={18}/></Link>}/>
 
     <section className="profile-identity surface">
       <label className="profile-avatar cursor-pointer" aria-label="Trocar foto de perfil"
@@ -287,18 +288,14 @@ export default function PerfilPage() {
           </ol>}
     </section>}
 
-    {editing && <div className="profile-modal-backdrop" onClick={() => setEditing(false)}>
-      <div className="surface profile-modal" onClick={event => event.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <div><p className="eyebrow">Sua identidade</p><h3>Editar perfil</h3></div>
-          <button className="icon-button" onClick={() => setEditing(false)} aria-label="Fechar"><X size={17}/></button>
-        </div>
-        <label>Nome<input value={name} onChange={event => setName(event.target.value)} maxLength={60}/></label>
-        <label>Seu propósito<textarea value={purpose} onChange={event => setLocalPurpose(event.target.value)} maxLength={180} rows={4}/><small>{purpose.length}/180</small></label>
-        {avatarUrl && <button type="button" onClick={() => void dropPhoto()} disabled={photoBusy} className="muted self-start text-xs underline-offset-2 hover:underline">Remover foto de perfil</button>}
-        {formError && <p className="text-xs" style={{ color: 'var(--danger)' }}>{formError}</p>}
-        <button className="energy-button py-3" onClick={() => void save()} disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>{saving ? 'Salvando…' : 'Salvar alterações'}</button>
+    <Sheet open={editing} onClose={() => setEditing(false)} eyebrow="Sua identidade" title="Editar perfil"
+      footer={<Button fullWidth loading={saving} onClick={() => void save()}>{saving ? 'Salvando…' : 'Salvar alterações'}</Button>}>
+      <div className="space-y-4">
+        <label className="block text-caption text-fg-2">Nome<input autoFocus className="field mt-1.5" value={name} onChange={event => setName(event.target.value)} maxLength={60}/></label>
+        <label className="block text-caption text-fg-2">Seu propósito<textarea className="field mt-1.5 resize-none" value={purpose} onChange={event => setLocalPurpose(event.target.value)} maxLength={180} rows={4}/><span className="mt-1 block text-right tabular-nums text-fg-3">{purpose.length}/180</span></label>
+        {avatarUrl && <button type="button" onClick={() => void dropPhoto()} disabled={photoBusy} className="text-caption text-fg-2 underline-offset-2 hover:underline">Remover foto de perfil</button>}
+        {formError && <p className="text-caption text-alert">{formError}</p>}
       </div>
-    </div>}
+    </Sheet>
   </div>
 }

@@ -1,16 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
 import { AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Edit3, Plus, Target } from 'lucide-react'
+import { Edit3, Plus, Target } from 'lucide-react'
+import Button from '@/components/ui/Button'
+import PageHeader from '@/components/ui/PageHeader'
 import { useAprumoStore } from '@/lib/store'
 import type { Goal, GoalCategory } from '@/lib/types'
 import { deadlineState, goalConsistency, indexEvents, isDoneOn, isoDate } from '@/lib/utils'
 import GoalCard from '@/components/modules/GoalCard'
 import GoalDialog, { type GoalDraft } from '@/components/modules/GoalDialog'
 import HabitDialog, { type HabitDraft } from '@/components/modules/HabitDialog'
-import ChipSelect from '@/components/ui/ChipSelect'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 
 type Filter = 'ativas' | 'concluidas' | 'todas' | GoalCategory
 const filters: { value: Filter; label: string }[] = [
@@ -91,17 +92,10 @@ export default function Metas() {
   }
 
   return <div className="page-wrap">
-    <header className="flex items-start justify-between gap-5">
-      <div>
-        <Link href="/hoje" className="muted mb-5 inline-flex items-center gap-2 text-sm no-underline"><ArrowLeft size={15}/> Voltar para Hoje</Link>
-        <p className="eyebrow">Metas</p>
-        <h1 className="display mt-3 text-4xl font-semibold md:text-6xl">Direção antes<br/>de velocidade.</h1>
-        <p className="muted mt-4">Conecte quem você quer ser ao comportamento de hoje.</p>
-      </div>
-      <button className="energy-button mt-9 flex items-center gap-2 px-5 py-3" onClick={() => setCreating(true)}><Plus size={17}/> <span className="hidden sm:inline">Nova meta</span></button>
-    </header>
+    <PageHeader back={{ href: '/hoje', label: 'Hoje' }} title="Metas" description="Direção antes de velocidade. Conecte quem você quer ser ao comportamento de hoje."
+      actions={<Button icon={<Plus size={17}/>} onClick={() => setCreating(true)}>Meta</Button>}/>
 
-    <section className="surface relative mt-10 p-6 md:p-8">
+    <section className="surface relative p-6 md:p-8">
       <p className="eyebrow">Meu norte</p>
       {editPurpose
         ? <>
@@ -126,7 +120,7 @@ export default function Metas() {
       <div className="surface p-5"><strong className="block text-2xl">{completed}</strong><span className="muted text-xs">concluídas</span></div>
     </section>}
 
-    {store.goals.length > 0 && <ChipSelect className="mt-7 flex gap-1.5 overflow-x-auto pb-1" value={filter} onChange={setFilter} options={filters} size="sm"/>}
+    {store.goals.length > 0 && <SegmentedControl className="mt-7" label="Filtrar metas" value={filter} onChange={setFilter} options={filters} size="sm"/>}
 
     {visible.length === 0
       ? <div className="surface mt-6 grid min-h-56 place-items-center p-8 text-center">

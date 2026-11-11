@@ -1,5 +1,9 @@
 import Link from 'next/link'
-import { ArrowRight, Dumbbell, Moon, Scale, ShieldCheck, Smile } from 'lucide-react'
+import { ChevronRight, Dumbbell, Moon, Scale, ShieldCheck, Smile } from 'lucide-react'
+import Badge from '@/components/ui/Badge'
+import Card, { cardClass } from '@/components/ui/Card'
+import PageHeader from '@/components/ui/PageHeader'
+import SectionHeader from '@/components/ui/SectionHeader'
 
 const areas = [
   { href: '/treino', label: 'Treinos', desc: 'Fichas, séries e repetições. Marque o que realizou.', icon: Dumbbell },
@@ -14,25 +18,21 @@ const soon = [
 
 export default function SaudePage() {
   return <div className="page-wrap">
-    <header className="mb-10">
-      <p className="eyebrow">Saúde</p>
-      <h1 className="display mt-3 max-w-2xl text-4xl font-semibold md:text-6xl">Cuide da base.<br/>O resto se sustenta.</h1>
-      <p className="muted mt-4 max-w-xl">Treino, bem-estar e descanso em um lugar só — simples e sem virar planilha de dieta.</p>
-    </header>
-    <section className="grid gap-3 md:grid-cols-3">
-      {areas.map(({ href, label, desc, icon: Icon }) => <Link key={href} href={href} className="surface flex flex-col gap-3 p-6 text-white no-underline">
-        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-energy/10 text-energy"><Icon size={20}/></span>
-        <div><p className="font-semibold">{label}</p><p className="muted mt-1 text-sm">{desc}</p></div>
-        <span className="mt-2 inline-flex items-center gap-2 text-sm text-energy">Abrir <ArrowRight size={15}/></span>
+    <PageHeader title="Saúde" description="Cuide da base. Treino, bem-estar e descanso em um lugar só — simples, sem virar planilha."/>
+    <section className="grid gap-3 md:grid-cols-2">
+      {areas.map(({ href, label, desc, icon: Icon }) => <Link key={href} href={href} className={`${cardClass({ interactive: true })} flex items-center gap-4 no-underline`}>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-area-soft text-area-ink"><Icon size={20}/></span>
+        <div className="min-w-0 flex-1"><p className="text-h3">{label}</p><p className="mt-0.5 text-body-s text-fg-2">{desc}</p></div>
+        <ChevronRight size={18} className="shrink-0 text-fg-3"/>
       </Link>)}
     </section>
-    <p className="muted mb-3 mt-10 text-[10px] font-bold uppercase tracking-[.16em]">Em breve</p>
+    <SectionHeader className="mb-3 mt-10" as="h3" title="Em breve"/>
     <section className="grid gap-3 md:grid-cols-2">
-      {soon.map(({ label, desc, icon: Icon }) => <div key={label} className="surface flex items-center gap-4 p-6 opacity-60">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/5 text-white/60"><Icon size={20}/></span>
-        <div><p className="font-semibold">{label}</p><p className="muted mt-1 text-sm">{desc}</p></div>
-        <span className="ml-auto shrink-0 rounded-full border border-white/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-white/50">Em breve</span>
-      </div>)}
+      {soon.map(({ label, desc, icon: Icon }) => <Card key={label} className="flex items-center gap-4 opacity-70">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface-2 text-fg-3"><Icon size={20}/></span>
+        <div className="min-w-0 flex-1"><p className="text-h3">{label}</p><p className="mt-0.5 text-body-s text-fg-2">{desc}</p></div>
+        <Badge>Em breve</Badge>
+      </Card>)}
     </section>
   </div>
 }

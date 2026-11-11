@@ -3,7 +3,13 @@
 import { Suspense, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ArrowLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Plus, Repeat2, X } from 'lucide-react'
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Plus, Repeat2, Timer } from 'lucide-react'
+import { focusHref } from '@/lib/focus'
+import Button from '@/components/ui/Button'
+import Chip from '@/components/ui/Chip'
+import FieldLabel from '@/components/ui/FieldLabel'
+import PageHeader from '@/components/ui/PageHeader'
+import Sheet from '@/components/ui/Sheet'
 import { useAprumoStore } from '@/lib/store'
 import type { DayBlock, Task } from '@/lib/types'
 import { capitalizeFirst, endTimeOf, indexEvents, isDoneOn, isoDate as iso, minutesBetween, parseDate as parse, taskShowsOn, weekStart } from '@/lib/utils'
@@ -84,17 +90,10 @@ function AgendaContent() {
     : new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(cursor))
 
   return <div className="page-wrap">
-    <header className="flex flex-wrap items-end justify-between gap-5">
-      <div>
-        <Link href="/hoje" className="muted mb-5 inline-flex items-center gap-2 text-sm no-underline"><ArrowLeft size={15}/> Voltar para Hoje</Link>
-        <p className="eyebrow">Tempo com intenção</p>
-        <h1 className="display mt-3 text-4xl font-semibold md:text-6xl">Agenda</h1>
-        <p className="muted mt-4">Tarefas, hábitos e compromissos organizados no mesmo lugar.</p>
-      </div>
-      <button className="energy-button flex items-center gap-2 px-5 py-3" onClick={() => setOpen(true)}><Plus size={17}/> Agendar</button>
-    </header>
+    <PageHeader back={{ href: '/hoje', label: 'Hoje' }} title="Agenda" description="Tarefas, hábitos e compromissos organizados no mesmo lugar."
+      actions={<Button icon={<Plus size={17}/>} onClick={() => setOpen(true)}>Agendar</Button>}/>
 
-    <section className="mt-9 flex flex-wrap items-center gap-3">
+    <section className="flex flex-wrap items-center gap-3">
       <div className="flex gap-1 rounded-full border p-1" style={{ borderColor: 'var(--line)' }}>
         {(['semana', 'mes'] as View[]).map(item => <button key={item} onClick={() => setView(item)}
           className="rounded-full px-4 py-1.5 text-sm font-semibold capitalize transition"
@@ -157,7 +156,7 @@ function AgendaContent() {
       <div className="agenda-timeline">
         {dayTasks.length === 0
           ? <div className="py-16 text-center"><CalendarDays className="mx-auto text-energy"/><p className="mt-4 font-semibold">Nada agendado</p><p className="muted mt-1 text-sm">Agende algo ou preserve este espaço.</p></div>
-          : dayTasks.map(task => <article key={task.id} className={doneOn(task, selected) ? 'done' : ''}>
+          : dayTasks.map(task => <article key={task.id} className={doneOn(task, selected) ? 'done' : ''} style={{ gridTemplateColumns: '64px 1fr auto' }}>
               <time>{task.startTime ?? 'Livre'}</time>
               <button onClick={() => toggle(task)}>
                 <span>{doneOn(task, selected) && <Check size={13}/>}</span>
@@ -169,31 +168,26 @@ function AgendaContent() {
                   </small>
                 </div>
               </button>
+              <Link href={focusHref(task.id)} aria-label={`Focar em ${task.title}`} className="grid h-11 w-11 place-items-center rounded-full border no-underline" style={{ borderColor: 'var(--line)', color: 'var(--ink)' }}><Timer size={16}/></Link>
             </article>)}
       </div>
     </section>
 
-    {open && <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setOpen(false)}>
-      <div className="surface w-full max-w-md p-6" onClick={event => event.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <div><p className="eyebrow">{new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long' }).format(parse(selected))}</p><h2 className="mt-1 text-2xl font-semibold">Agendar compromisso</h2></div>
-          <button className="icon-button" onClick={() => setOpen(false)} aria-label="Fechar"><X size={18}/></button>
-        </div>
-        <input autoFocus className="field mt-6" value={title} onChange={event => setTitle(event.target.value)} maxLength={160} placeholder="O que você vai fazer?"/>
-        <div className="mt-4">
-          <TimeRange enabled={timed} start={start} end={end} onToggle={setTimed} onStart={setStart} onEnd={setEnd}
-            offHint="Sem horário — fica no período do dia."/>
-        </div>
-        <p className="muted mb-2 mt-4 text-xs">Período do dia</p>
-        <div className="flex flex-wrap gap-1.5">
-          {(['manha','tarde','noite','livre'] as DayBlock[]).map(item => <button key={item} onClick={() => setBlock(item)}
-            className="rounded-full border px-3 py-2 text-xs transition"
-            style={{ borderColor: block === item ? 'var(--energy)' : 'var(--line)', background: block === item ? 'var(--energy)' : 'transparent', color: block === item ? '#11130f' : 'var(--muted)' }}>{item === 'manha' ? 'Manhã' : item === 'livre' ? 'Sem horário' : capitalizeFirst(item)}</button>)}
-        </div>
-        <p className="muted mt-5 text-xs">Precisa que se repita toda semana? Crie como <Link href="/tarefas" className="text-energy no-underline">hábito</Link>.</p>
-        <button className="energy-button mt-4 w-full py-3" onClick={create}>Salvar na agenda</button>
+    <Sheet open={open} onClose={() => setOpen(false)} eyebrow={new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long' }).format(parse(selected))} title="Agendar compromisso"
+      footer={<Button fullWidth onClick={create}>Salvar na agenda</Button>}>
+      <input autoFocus className="field" value={title} onChange={event => setTitle(event.target.value)} maxLength={160} placeholder="O que você vai fazer?"/>
+      <div className="mt-4">
+        <TimeRange enabled={timed} start={start} end={end} onToggle={setTimed} onStart={setStart} onEnd={setEnd}
+          offHint="Sem horário — fica no período do dia."/>
       </div>
-    </div>}
+      <FieldLabel>Período do dia</FieldLabel>
+      <div className="flex flex-wrap gap-1.5">
+        {(['manha','tarde','noite','livre'] as DayBlock[]).map(item => <Chip key={item} selected={block === item} onClick={() => setBlock(item)}>
+          {item === 'manha' ? 'Manhã' : item === 'livre' ? 'Sem horário' : capitalizeFirst(item)}
+        </Chip>)}
+      </div>
+      <p className="mt-5 text-caption text-fg-2">Precisa que se repita toda semana? Crie como <Link href="/tarefas" className="font-medium text-fg-1 underline underline-offset-2">hábito</Link>.</p>
+    </Sheet>
   </div>
 }
 

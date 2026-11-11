@@ -4,8 +4,13 @@ import { FormEvent, Suspense, useEffect, useMemo, useState, useSyncExternalStore
 import { useSearchParams } from 'next/navigation'
 import { readPreference, setPreference, subscribePreference, type ThemePreference } from '@/lib/theme'
 import Link from 'next/link'
-import { AlertTriangle, Bell, Bot, Check, ChevronRight, Clock3, CreditCard, Database, Download, Globe2, LockKeyhole, LogOut, Mail, MessageCircle, Moon, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react'
+import { AlertTriangle, Bell, Bot, Check, ChevronRight, Clock3, CreditCard, Database, Download, Globe2, LockKeyhole, LogOut, Mail, MessageCircle, Moon, ShieldCheck, Sparkles, UserRound } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
+import Button from '@/components/ui/Button'
+import PageHeader from '@/components/ui/PageHeader'
+import Sheet from '@/components/ui/Sheet'
+import Switch from '@/components/ui/Switch'
+import VoicePicker from '@/components/pri/VoicePicker'
 
 interface BillingInfo {
   plan: 'free' | 'plus'
@@ -43,7 +48,7 @@ const tabs = [
 ]
 
 function Toggle({ value, onChange, label }: { value: boolean; onChange: () => void; label: string }) {
-  return <button type="button" role="switch" aria-checked={value} aria-label={label} className={`settings-toggle ${value ? 'active' : ''}`} onClick={onChange}><span/></button>
+  return <Switch checked={value} onChange={onChange} label={label}/>
 }
 
 function PreferenceRow({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
@@ -59,7 +64,7 @@ function ConfiguracoesContent() {
   const searchParams = useSearchParams()
   const initialTab = tabs.some(item => item.id === searchParams.get('tab')) ? (searchParams.get('tab') as Tab) : 'conta'
   const [tab, setTab] = useState<Tab>(initialTab)
-  const [values, setValues] = useState({ reminders: true, weekly: false, email: true, tasks: true, goals: true, mood: false })
+  const [values, setValues] = useState({ reminders: true, weekly: false, email: true, tasks: true, goals: true, mood: false, finance: false })
   const [saved, setSaved] = useState(false)
   // A mesma preferência que o <head> lê. No servidor vale o escuro (padrão) até hidratar.
   const theme = useSyncExternalStore(subscribePreference, readPreference, (): ThemePreference => 'dark')
@@ -92,7 +97,7 @@ function ConfiguracoesContent() {
       const permissions = data.profile.ai_permissions as Record<string, boolean> | null
       const notifications = data.profile.notification_prefs as Record<string, boolean> | null
       setAccount({ name: data.profile.display_name || 'Sua conta', email: data.email || 'E-mail protegido' })
-      if (permissions) setValues(current => ({ ...current, tasks: permissions.tasks !== false, goals: permissions.goals !== false, mood: permissions.moods === true }))
+      if (permissions) setValues(current => ({ ...current, tasks: permissions.tasks !== false, goals: permissions.goals !== false, mood: permissions.moods === true, finance: permissions.finance === true }))
       // Preferência de aviso: o que já está na conta manda; sem servidor ainda, o que ficou salvo no aparelho continua valendo.
       if (notifications) setValues(current => ({ ...current, reminders: notifications.reminders !== false, weekly: notifications.weekly === true, email: notifications.email !== false }))
       if (typeof data.profile.timezone === 'string') setTimezone(data.profile.timezone)
@@ -134,7 +139,7 @@ function ConfiguracoesContent() {
       await fetch('/api/profile', {
         method: 'PUT', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          aiPermissions: { tasks: values.tasks, goals: values.goals, books: true, moods: values.mood, finance: false, antivicio: false },
+          aiPermissions: { tasks: values.tasks, goals: values.goals, books: true, moods: values.mood, finance: values.finance, antivicio: false },
           notificationPrefs: { reminders: values.reminders, weekly: values.weekly, email: values.email },
         }),
       })
@@ -227,7 +232,8 @@ function ConfiguracoesContent() {
   }, [tzQuery])
 
   return <div className="page-wrap settings-v2">
-    <header className="settings-v2-header"><div><p className="eyebrow">Sua experiência</p><h1 className="display">Configurações</h1><p>Personalize Aprumo e controle seus dados.</p></div><button className={`settings-save ${saved ? 'saved' : ''}`} onClick={save}>{saved ? <><Check size={16}/> Alterações salvas</> : 'Salvar alterações'}</button></header>
+    <PageHeader title="Configurações" description="Personalize o Aprumo e controle seus dados."
+      actions={<Button variant={saved ? 'secondary' : 'primary'} icon={saved ? <Check size={16}/> : undefined} onClick={save}>{saved ? 'Salvo' : 'Salvar'}</Button>}/>
 
     <div className="settings-v2-shell">
       <nav className="settings-v2-nav" aria-label="Seções das configurações">
@@ -240,7 +246,7 @@ function ConfiguracoesContent() {
         {tab === 'conta' && <><div className="settings-panel-title"><span><UserRound size={20}/></span><div><h2>Conta</h2><p>Informações pessoais e segurança de acesso.</p></div></div><div className="settings-profile-card"><div className="settings-avatar">{account.name.slice(0,2).toUpperCase()}</div><div><strong>{account.name}</strong><p>Sua identidade em Aprumo.</p></div><Link href="/perfil">Editar perfil</Link></div><div className="preference-list"><PreferenceRow title="Endereço de e-mail" description={account.email}><button className="text-action" onClick={openEmailModal}><Mail size={15}/> Alterar</button></PreferenceRow><PreferenceRow title="Senha" description={resetMsg || 'Protegida pelo Supabase Auth'}><button className="text-action" onClick={requestPasswordReset} disabled={resetBusy}><LockKeyhole size={15}/> {resetBusy ? 'Enviando…' : 'Enviar link de redefinição'}</button></PreferenceRow><PreferenceRow title="Idioma da conta" description="Português (Brasil) — único idioma disponível por enquanto"><span className="muted flex items-center gap-1.5 text-xs"><Globe2 size={15}/> Único disponível</span></PreferenceRow></div></>}
 
         {tab === 'aprumo-plus' && <>
-          <div className="settings-panel-title"><span><Sparkles size={20}/></span><div><h2>Aprumo+</h2><p>Insights avançados e conversas com a Pri, na plataforma e no WhatsApp.</p></div></div>
+          <div className="settings-panel-title"><span><Sparkles size={20}/></span><div><h2>Aprumo+</h2><p>Acompanhamento contínuo: a Pri revisa seu plano e ajusta conforme a vida acontece, na plataforma e no WhatsApp.</p></div></div>
           {checkoutNotice === 'cancelado' && <p className="mx-6.75 mt-2 text-sm" style={{ color: 'var(--muted)' }}>Checkout cancelado — nada foi cobrado.</p>}
           {billingError && <p className="mx-6.75 mt-2 text-sm" style={{ color: 'var(--danger)' }}>{billingError}</p>}
           {billing?.status === 'past_due' && <div className="mx-6.75 mt-2 flex items-start gap-2.5 rounded-2xl border p-3 text-sm" style={{ borderColor: 'rgba(255,107,107,.35)', color: 'var(--danger)' }}>
@@ -250,7 +256,7 @@ function ConfiguracoesContent() {
 
           {billing?.plan === 'plus'
             ? <div className="billing-balance"><div><small>{billing.cancelAtPeriodEnd ? 'ATIVA ATÉ' : 'PRÓXIMA COBRANÇA'}</small><strong style={{ fontSize: 22 }}>{billing.renewsAt ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long' }).format(new Date(billing.renewsAt)) : '—'}</strong><p>{billing.balance} {billing.balance === 1 ? 'crédito' : 'créditos'} restantes neste ciclo</p></div><CreditCard size={30}/></div>
-            : <div className="billing-balance"><div><small>SEU PLANO</small><strong style={{ fontSize: 22 }}>Free</strong><p>Sem acesso à Pri — assine para conversar</p></div><Sparkles size={30}/></div>}
+            : <div className="billing-balance"><div><small>SEU PLANO</small><strong style={{ fontSize: 22 }}>Free</strong><p>{billing ? `${billing.balance} ${billing.balance === 1 ? 'crédito' : 'créditos'} para diagnóstico e plano inicial` : 'Diagnóstico e plano inicial com a Pri'}</p></div><Sparkles size={30}/></div>}
 
           <div className="preference-list">
             {billing?.plan === 'plus' ? <>
@@ -291,22 +297,34 @@ function ConfiguracoesContent() {
 
         {tab === 'notificacoes' && <><div className="settings-panel-title"><span><Bell size={20}/></span><div><h2>Notificações</h2><p>Escolha quando Aprumo pode chamar sua atenção.</p></div></div><div className="preference-list"><PreferenceRow title="Lembretes do dia" description="Compromissos prioritários e hábitos programados."><Toggle label="Lembretes do dia" value={values.reminders} onChange={() => flip('reminders')}/></PreferenceRow><PreferenceRow title="Resumo semanal" description="Uma leitura simples da sua evolução toda segunda-feira."><Toggle label="Resumo semanal" value={values.weekly} onChange={() => flip('weekly')}/></PreferenceRow><PreferenceRow title="Novidades por e-mail" description="Atualizações importantes do produto, sem excesso."><Toggle label="Novidades por e-mail" value={values.email} onChange={() => flip('email')}/></PreferenceRow></div></>}
 
-        {tab === 'ia' && <><div className="settings-panel-title"><span><Bot size={20}/></span><div><h2>Contexto da Pri</h2><p>Escolha quais informações podem apoiar seus insights.</p></div></div><div className="safe-banner"><ShieldCheck size={18}/><div><strong>Você está no controle.</strong><p>Nenhum dado é publicado ou compartilhado automaticamente.</p></div></div><div className="preference-list"><PreferenceRow title="Tarefas e hábitos" description="Padrões de execução, constância e repasses."><Toggle label="Contexto de tarefas" value={values.tasks} onChange={() => flip('tasks')}/></PreferenceRow><PreferenceRow title="Metas" description="Relação entre suas ações e o progresso de longo prazo."><Toggle label="Contexto de metas" value={values.goals} onChange={() => flip('goals')}/></PreferenceRow><PreferenceRow title="Humor e emocional" description="Relação entre energia, emoções e rotina."><Toggle label="Contexto emocional" value={values.mood} onChange={() => flip('mood')}/></PreferenceRow></div></>}
+        {tab === 'ia' && <><div className="settings-panel-title"><span><Bot size={20}/></span><div><h2>Contexto da Pri</h2><p>Escolha quais informações podem apoiar seus insights.</p></div></div><div className="safe-banner"><ShieldCheck size={18}/><div><strong>Você está no controle.</strong><p>Nenhum dado é publicado ou compartilhado automaticamente.</p></div></div><div className="preference-list"><PreferenceRow title="Tarefas e hábitos" description="Padrões de execução, constância e repasses."><Toggle label="Contexto de tarefas" value={values.tasks} onChange={() => flip('tasks')}/></PreferenceRow><PreferenceRow title="Metas" description="Relação entre suas ações e o progresso de longo prazo."><Toggle label="Contexto de metas" value={values.goals} onChange={() => flip('goals')}/></PreferenceRow><PreferenceRow title="Humor e emocional" description="Relação entre energia, emoções e rotina."><Toggle label="Contexto emocional" value={values.mood} onChange={() => flip('mood')}/></PreferenceRow><PreferenceRow title="Financeiro" description="Entradas, gastos e categorias recentes — para a Pri responder sobre o seu dinheiro. Desligado por padrão."><Toggle label="Contexto financeiro" value={values.finance} onChange={() => flip('finance')}/></PreferenceRow></div><p className="px-6.75 pb-4 text-caption text-fg-3 max-sm:px-4.5">Depois de mudar o contexto, toque em Salvar no topo da página.</p><div className="border-t border-line pt-4"><VoicePicker/></div></>}
 
         {tab === 'privacidade' && <><div className="settings-panel-title"><span><ShieldCheck size={20}/></span><div><h2>Privacidade e dados</h2><p>Seus dados são privados por padrão.</p></div></div><div className="privacy-status"><span><ShieldCheck size={23}/></span><div><small>STATUS DA CONTA</small><strong>Todos os seus dados estão privados</strong><p>Nada é publicado sem uma ação explícita sua.</p></div></div><div className="preference-list"><PreferenceRow title="Baixar meus dados" description="Exporte uma cópia das suas informações."><button className="text-action" onClick={exportData}><Download size={15}/> Exportar</button></PreferenceRow><PreferenceRow title="Dados armazenados" description="Veja quanto de cada tipo de informação está guardado."><button className="text-action" onClick={openDataModal}><Database size={15}/> Consultar</button></PreferenceRow></div></>}
 
         {tab === 'aparencia' && <><div className="settings-panel-title"><span><Moon size={20}/></span><div><h2>Aparência</h2><p>Ajuste o visual e o formato do aplicativo.</p></div></div><div className="theme-preview"><button className={`theme-swatch ${theme==='dark'?'active':''}`} aria-pressed={theme==='dark'} onClick={()=>chooseTheme('dark')}><span/><div/><small>Escuro</small></button><button className={`theme-swatch light ${theme==='light'?'active':''}`} aria-pressed={theme==='light'} onClick={()=>chooseTheme('light')}><span/><div/><small>Claro</small></button><button className={`theme-swatch auto ${theme==='system'?'active':''}`} aria-pressed={theme==='system'} onClick={()=>chooseTheme('system')}><span/><div/><small>Automático</small></button></div><p className="theme-hint">Automático acompanha o tema do seu celular ou computador — e troca sozinho quando ele mudar.</p><div className="preference-list"><PreferenceRow title="Fuso horário" description={timeZoneLabel(timezone)}><button className="text-action" onClick={() => { setTzQuery(''); setTzModal(true) }}><Clock3 size={15}/> Alterar</button></PreferenceRow><PreferenceRow title="Formato de data" description="DD/MM/AAAA — padrão brasileiro, usado em todo o Aprumo"><span className="muted text-xs">Fixo por enquanto</span></PreferenceRow></div></>}
       </section>
     </div>
-    {emailModal && <div className="profile-modal-backdrop" onClick={() => setEmailModal(false)}><form className="surface profile-modal" onClick={event => event.stopPropagation()} onSubmit={changeEmail}><div className="flex items-center justify-between"><div><p className="eyebrow">Segurança da conta</p><h3>Alterar e-mail</h3></div><button type="button" className="icon-button" onClick={() => setEmailModal(false)}><X size={17}/></button></div><p className="muted text-sm">E-mail atual: {account.email}</p><label>Novo e-mail<input type="email" autoFocus value={newEmail} onChange={event => setNewEmail(event.target.value)} placeholder="voce@exemplo.com"/></label>{emailMsg && <p className="text-sm" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>{emailMsg}</p>}<button className="energy-button py-3" disabled={emailBusy}>{emailBusy ? 'Enviando…' : 'Enviar confirmação'}</button></form></div>}
+    <Sheet open={emailModal} onClose={() => setEmailModal(false)} eyebrow="Segurança da conta" title="Alterar e-mail" description={`E-mail atual: ${account.email}`}
+      footer={<Button fullWidth type="submit" form="change-email" loading={emailBusy}>{emailBusy ? 'Enviando…' : 'Enviar confirmação'}</Button>}>
+      <form id="change-email" onSubmit={changeEmail} className="space-y-3">
+        <label className="block text-caption text-fg-2">Novo e-mail<input type="email" autoFocus className="field mt-1.5" value={newEmail} onChange={event => setNewEmail(event.target.value)} placeholder="voce@exemplo.com"/></label>
+        {emailMsg && <p className="text-body-s text-fg-2">{emailMsg}</p>}
+      </form>
+    </Sheet>
 
-    {tzModal && <div className="profile-modal-backdrop" onClick={() => setTzModal(false)}><div className="surface profile-modal" onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><p className="eyebrow">Aparência</p><h3>Fuso horário</h3></div><button type="button" className="icon-button" onClick={() => setTzModal(false)}><X size={17}/></button></div><input autoFocus className="field" value={tzQuery} onChange={event => setTzQuery(event.target.value)} placeholder="Buscar cidade ou região…"/><div style={{ maxHeight: 280, overflowY: 'auto' }} className="-mx-1 mt-1">{filteredZones.map(zone => <button key={zone} onClick={() => void chooseTimezone(zone)} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-white/5" style={{ color: zone === timezone ? 'var(--accent)' : 'var(--ink)' }}>{timeZoneLabel(zone)}{zone === timezone && <Check size={15}/>}</button>)}{filteredZones.length === 0 && <p className="muted p-3 text-sm">Nada encontrado.</p>}</div></div></div>}
+    <Sheet open={tzModal} onClose={() => setTzModal(false)} eyebrow="Aparência" title="Fuso horário">
+      <input autoFocus className="field" value={tzQuery} onChange={event => setTzQuery(event.target.value)} placeholder="Buscar cidade ou região…"/>
+      <div className="-mx-2 mt-2">
+        {filteredZones.map(zone => <button key={zone} onClick={() => void chooseTimezone(zone)} className={`flex min-h-11 w-full items-center justify-between rounded-control px-3 py-2 text-left text-body-s hover:bg-surface-hover ${zone === timezone ? 'font-medium text-fg-1' : 'text-fg-2'}`}>{timeZoneLabel(zone)}{zone === timezone && <Check size={15}/>}</button>)}
+        {filteredZones.length === 0 && <p className="p-3 text-body-s text-fg-2">Nada encontrado.</p>}
+      </div>
+    </Sheet>
 
-    {dataModal && <div className="profile-modal-backdrop" onClick={() => setDataModal(false)}><div className="surface profile-modal" onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><div><p className="eyebrow">Privacidade e dados</p><h3>Dados armazenados</h3></div><button type="button" className="icon-button" onClick={() => setDataModal(false)}><X size={17}/></button></div>
-      {dataError && <p className="text-sm" style={{ color: 'var(--danger)' }}>{dataError}</p>}
-      {!dataError && !dataCounts && <p className="muted text-sm">Consultando…</p>}
-      {dataCounts && <div className="space-y-1">{dataCounts.map(row => <div key={row.label} className="flex items-center justify-between border-b py-2 text-sm last:border-0" style={{ borderColor: 'var(--line)' }}><span className="muted">{row.label}</span><strong>{row.count}</strong></div>)}</div>}
-      <p className="muted text-xs">Tudo isso é seu — a exportação completa fica em &quot;Baixar meus dados&quot;.</p>
-    </div></div>}
+    <Sheet open={dataModal} onClose={() => setDataModal(false)} eyebrow="Privacidade e dados" title="Dados armazenados"
+      description="Tudo isso é seu — a exportação completa fica em “Baixar meus dados”.">
+      {dataError && <p className="text-body-s text-alert">{dataError}</p>}
+      {!dataError && !dataCounts && <p className="text-body-s text-fg-2">Consultando…</p>}
+      {dataCounts && <div>{dataCounts.map(row => <div key={row.label} className="flex items-center justify-between border-b border-line py-2.5 text-body-s last:border-0"><span className="text-fg-2">{row.label}</span><strong className="tabular-nums">{row.count}</strong></div>)}</div>}
+    </Sheet>
   </div>
 }

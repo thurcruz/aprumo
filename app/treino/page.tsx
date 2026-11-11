@@ -1,10 +1,11 @@
 'use client'
 
 import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AnimatePresence } from 'framer-motion'
-import { ArrowLeft, CalendarClock, Check, Dumbbell, Pencil, Play, Plus, X } from 'lucide-react'
+import Button from '@/components/ui/Button'
+import PageHeader from '@/components/ui/PageHeader'
+import { CalendarClock, Check, Dumbbell, Pencil, Play, Plus, X } from 'lucide-react'
 import { useAprumoStore } from '@/lib/store'
 import type { Task, WorkoutLog, WorkoutPlan } from '@/lib/types'
 import { describeFrequency, habitRunsOn, indexEvents, isDoneOn, isoDate } from '@/lib/utils'
@@ -106,17 +107,10 @@ function TreinoContent() {
   const scheduledHabit = scheduling ? habitOf(scheduling) : undefined
 
   return <div className="page-wrap">
-    <header className="flex items-start justify-between gap-5">
-      <div>
-        <Link href="/saude" className="muted mb-5 inline-flex items-center gap-2 text-sm no-underline"><ArrowLeft size={15}/> Saúde</Link>
-        <p className="eyebrow">Treino</p>
-        <h1 className="display mt-3 text-4xl font-semibold md:text-6xl">Força se constrói<br/>em repetições.</h1>
-        <p className="muted mt-4 max-w-xl">Monte a ficha uma vez. Depois é entrar, executar e sair — a carga da última vez já vem sugerida.</p>
-      </div>
-      <button onClick={() => setEditing('nova')} className="energy-button mt-9 flex items-center gap-2 px-5 py-3"><Plus size={17}/><span className="hidden sm:inline">Nova ficha</span></button>
-    </header>
+    <PageHeader back={{ href: '/extensoes', label: 'Extensões' }} title="Treino" description="Monte a ficha uma vez. Depois é entrar, executar e sair — a carga da última vez já vem sugerida."
+      actions={<Button icon={<Plus size={17}/>} onClick={() => setEditing('nova')}>Ficha</Button>}/>
 
-    {finished && <div className="surface mt-8 flex items-center gap-3 p-4" style={{ borderColor: 'rgba(208,224,39,.4)' }}>
+    {finished && <div className="surface mb-6 flex items-center gap-3 p-4" style={{ borderColor: 'rgba(208,224,39,.4)' }}>
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-energy text-[#11130f]"><Check size={18}/></span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{finished.log.planName} concluído</p>
@@ -126,7 +120,7 @@ function TreinoContent() {
     </div>}
 
     {store.workouts.length === 0
-      ? <div className="surface mt-10 grid min-h-56 place-items-center p-8 text-center">
+      ? <div className="surface grid min-h-56 place-items-center p-8 text-center">
           <div>
             <Dumbbell className="mx-auto text-energy"/>
             <p className="mt-4 font-semibold">Nenhuma ficha ainda</p>
@@ -134,7 +128,7 @@ function TreinoContent() {
             <button onClick={() => setEditing('nova')} className="energy-button mt-6 px-5 py-2.5 text-sm">Montar a primeira</button>
           </div>
         </div>
-      : <div className="mt-10 grid gap-4 md:grid-cols-2">
+      : <div className="grid gap-4 md:grid-cols-2">
           {store.workouts.map(plan => {
             const habit = habitOf(plan)
             const last = logs.find(log => log.planId === plan.id && log.completedAt)

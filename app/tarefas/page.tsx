@@ -3,7 +3,10 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AnimatePresence } from 'framer-motion'
-import { ArrowLeft, CalendarRange, Check, ChevronDown, Clock3, Flame, PencilLine, Plus, Repeat2, Star, Target, Trash2 } from 'lucide-react'
+import Button from '@/components/ui/Button'
+import PageHeader from '@/components/ui/PageHeader'
+import { CalendarRange, Check, ChevronDown, Clock3, Flame, PencilLine, Plus, Repeat2, Star, Target, Timer, Trash2 } from 'lucide-react'
+import { focusHref } from '@/lib/focus'
 import { useAprumoStore } from '@/lib/store'
 import { dayBlocks, type DayBlock, type Task } from '@/lib/types'
 import { describeFrequency, describeSpan, endTimeOf, habitExpired, habitRunsOn, indexEvents, isDoneOn, isoDate as iso } from '@/lib/utils'
@@ -63,17 +66,11 @@ export default function HabitosPage() {
   }
 
   return <div className="page-wrap" onClick={closeMenu}>
-    <header className="flex items-start justify-between gap-5">
-      <div>
-        <Link href="/hoje" className="muted mb-5 inline-flex items-center gap-2 text-sm no-underline"><ArrowLeft size={15}/> Voltar para Hoje</Link>
-        <p className="eyebrow">Editar rotina</p>
-        <h1 className="display mt-3 text-4xl font-semibold md:text-6xl">Decida uma vez.<br/>Execute todos os dias.</h1>
-        <p className="muted mt-4 max-w-xl">Mantenha apenas os hábitos que sustentam quem você quer se tornar. O que é só de hoje pertence ao <Link href="/hoje" className="text-energy no-underline">seu dia</Link>.</p>
-      </div>
-      <button onClick={() => setCreating(true)} className="energy-button mt-9 flex items-center gap-2 px-5 py-3"><Plus size={17}/><span className="hidden sm:inline">Novo hábito</span></button>
-    </header>
+    <PageHeader back={{ href: '/hoje', label: 'Hoje' }} title="Hábitos"
+      description={<>Decida uma vez, execute todos os dias. O que é só de hoje pertence ao <Link href="/hoje" className="font-medium text-fg-1 underline underline-offset-2">seu dia</Link>.</>}
+      actions={<Button icon={<Plus size={17}/>} onClick={() => setCreating(true)}>Hábito</Button>}/>
 
-    <section className="mt-10 grid gap-3 sm:grid-cols-3">
+    <section className="grid gap-3 sm:grid-cols-3">
       <div className="surface p-5"><Check size={19} className="text-energy"/><strong className="mt-5 block text-2xl">{done}/{activeToday.length}</strong><span className="muted text-xs">cumpridos hoje</span></div>
       <div className="surface p-5"><Flame size={19} className="text-energy"/><strong className="mt-5 block text-2xl">{currentStreak}</strong><span className="muted text-xs">dias de sequência</span></div>
       <div className="surface p-5"><Star size={19} className="text-energy"/><strong className="mt-5 block text-2xl">{essentials}</strong><span className="muted text-xs">marcados como essenciais</span></div>
@@ -130,6 +127,7 @@ export default function HabitosPage() {
                     <button onClick={event => { event.stopPropagation(); setConfirmDelete(null); setOpenMenu(openMenu === habit.id ? null : habit.id) }} aria-label="Mais opções" className="muted shrink-0 rounded-lg p-1 hover:text-white"><ChevronDown size={14}/></button>
 
                     {openMenu === habit.id && <div onClick={event => event.stopPropagation()} className="glass absolute right-2 top-11 z-30 w-60 rounded-2xl p-2 text-sm">
+                      <Link href={focusHref(habit.id)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-white no-underline hover:bg-white/5"><Timer size={14}/> Focar nisto</Link>
                       <button onClick={() => { closeMenu(); setEditing(habit) }} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/5"><Repeat2 size={14}/> Dias e horário</button>
                       <button onClick={() => toggleEssential(habit)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/5"><Star size={14} style={{ color: essential ? 'var(--accent)' : undefined }}/> {essential ? 'Remover de essencial' : 'Marcar como essencial'}</button>
                       <button onClick={() => { setRenaming(habit.id); closeMenu() }} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/5"><PencilLine size={14}/> Renomear</button>
