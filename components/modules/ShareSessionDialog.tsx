@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Check, Copy, Download, Image as ImageIcon, Share2, UsersRound, X } from 'lucide-react'
+import { Check, Copy, Download, Image as ImageIcon, Share2, UsersRound } from 'lucide-react'
 import type { FocusSession } from '@/lib/types'
 import { canvasToBlob, drawSessionCard, sessionText, shareImage, shareSession } from '@/lib/share'
 import { publishFocusSession } from '@/lib/feed'
+import Button from '@/components/ui/Button'
+import Sheet from '@/components/ui/Sheet'
+import { ToggleRow } from '@/components/ui/Switch'
 
 type Status = 'idle' | 'shared' | 'copied' | 'downloaded' | 'failed'
 type PostStatus = 'idle' | 'busy' | 'done' | 'failed'
@@ -34,8 +36,15 @@ export default function ShareSessionDialog({ session, userName, onClose }: {
   const [postError, setPostError] = useState('')
 
   // O card é desenhado uma vez, e o mesmo canvas serve de prévia e de origem do PNG.
+  // O Sheet entra no DOM um instante depois (portal), por isso o desenho espera o canvas existir.
   useEffect(() => {
-    if (canvas.current) drawSessionCard(canvas.current, session, userName)
+    let frame = 0
+    const draw = () => {
+      if (canvas.current) drawSessionCard(canvas.current, session, userName)
+      else frame = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => cancelAnimationFrame(frame)
   }, [session, userName])
 
   async function onShareText() {
@@ -60,50 +69,33 @@ export default function ShareSessionDialog({ session, userName, onClose }: {
     else { setPostStatus('failed'); setPostError(result.error) }
   }
 
-  return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-    <motion.div initial={{ scale: .96, y: 15 }} animate={{ scale: 1, y: 0 }} exit={{ scale: .96, y: 15 }}
-      className="surface my-auto w-full max-w-sm p-6" onClick={event => event.stopPropagation()}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow">Compartilhar</p>
-          <h2 className="mt-1 text-2xl font-semibold">Mostre o que você fez</h2>
-        </div>
-        <button className="icon-button shrink-0" onClick={onClose} aria-label="Fechar"><X size={17}/></button>
-      </div>
+  return <Sheet managed onClose={onClose} size="sm" eyebrow="Compartilhar" title="Mostre o que você fez">
+    <div className="mx-auto max-w-60 overflow-hidden rounded-card border border-line">
+      <canvas ref={canvas} className="block w-full" style={{ aspectRatio: '1080 / 1920' }} aria-label="Prévia do card da sessão"/>
+    </div>
 
-      <div className="mt-5 overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--line)' }}>
-        <canvas ref={canvas} className="block w-full" style={{ aspectRatio: '1080 / 1920' }} aria-label="Prévia do card da sessão"/>
-      </div>
+    <p className="mt-4 rounded-control border border-line bg-surface-2 p-3 text-caption text-fg-2">{sessionText(session)}</p>
 
-      <p className="muted mt-4 rounded-2xl border p-3 text-xs" style={{ borderColor: 'var(--line)' }}>{sessionText(session)}</p>
+    <div className="mt-4 grid gap-2">
+      <Button fullWidth onClick={onShareImage} disabled={busy} icon={<ImageIcon size={16}/>}>Imagem para stories</Button>
+      <Button fullWidth variant="secondary" onClick={onShareText} disabled={busy} icon={canShare ? <Share2 size={16}/> : <Copy size={16}/>}>
+        {canShare ? 'Compartilhar texto' : 'Copiar texto'}
+      </Button>
+    </div>
 
-      <div className="mt-4 grid gap-2">
-        <button onClick={onShareImage} disabled={busy} className="energy-button flex items-center justify-center gap-2 py-3 text-sm" style={{ opacity: busy ? .6 : 1 }}>
-          <ImageIcon size={16}/> Imagem para stories
-        </button>
-        <button onClick={onShareText} disabled={busy} className="flex items-center justify-center gap-2 rounded-full border py-3 text-sm" style={{ borderColor: 'var(--line)', opacity: busy ? .6 : 1 }}>
-          {canShare ? <><Share2 size={16}/> Compartilhar texto</> : <><Copy size={16}/> Copiar texto</>}
-        </button>
-      </div>
+    {status !== 'idle' && <p className={`mt-3 flex items-center justify-center gap-1.5 text-caption ${status === 'failed' ? 'text-alert' : 'text-fg-1'}`}>
+      {status === 'failed' ? null : status === 'downloaded' ? <Download size={13}/> : <Check size={13}/>}
+      {messages[status]}
+    </p>}
 
-      {status !== 'idle' && <p className="mt-3 flex items-center justify-center gap-1.5 text-xs" style={{ color: status === 'failed' ? 'var(--danger)' : 'var(--accent)' }}>
-        {status === 'failed' ? null : status === 'downloaded' ? <Download size={13}/> : <Check size={13}/>}
-        {messages[status]}
-      </p>}
-
-      <div className="mt-5 border-t pt-5" style={{ borderColor: 'var(--line)' }}>
-        <label className="flex items-center gap-2.5 text-xs" style={{ color: 'var(--muted)' }}>
-          <input type="checkbox" checked={showName} onChange={event => setShowName(event.target.checked)} disabled={postStatus === 'done'}/>
-          Mostrar no que focou
-        </label>
-        <button onClick={onPublish} disabled={postStatus === 'busy' || postStatus === 'done'}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border py-3 text-sm"
-          style={{ borderColor: 'var(--line)', opacity: postStatus === 'busy' ? .6 : 1 }}>
-          {postStatus === 'done' ? <><Check size={16}/> Publicado na comunidade</> : <><UsersRound size={16}/> Publicar na comunidade</>}
-        </button>
-        {postStatus === 'failed' && <p className="mt-2 text-center text-xs" style={{ color: 'var(--danger)' }}>{postError}</p>}
-      </div>
-    </motion.div>
-  </motion.div>
+    <div className="mt-5 border-t border-line pt-5">
+      <ToggleRow checked={showName} onChange={value => { if (postStatus !== 'done') setShowName(value) }} title="Mostrar no que focou"
+        description="O nome da sessão aparece na publicação."/>
+      <Button fullWidth variant="secondary" className="mt-3" onClick={onPublish} disabled={postStatus === 'done'} loading={postStatus === 'busy'}
+        icon={postStatus === 'done' ? <Check size={16}/> : <UsersRound size={16}/>}>
+        {postStatus === 'done' ? 'Publicado na comunidade' : 'Publicar na comunidade'}
+      </Button>
+      {postStatus === 'failed' && <p className="mt-2 text-center text-caption text-alert">{postError}</p>}
+    </div>
+  </Sheet>
 }

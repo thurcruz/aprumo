@@ -1,10 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { CalendarRange, Target, X } from 'lucide-react'
+import { CalendarRange, Target } from 'lucide-react'
 import { dayBlocks, weekdays, type DayBlock, type Goal, type HabitFrequency, type Weekday } from '@/lib/types'
 import { endFrom, isoDate, minutesBetween } from '@/lib/utils'
+import Button from '@/components/ui/Button'
+import Chip from '@/components/ui/Chip'
+import FieldLabel from '@/components/ui/FieldLabel'
+import Sheet from '@/components/ui/Sheet'
+import { ToggleRow } from '@/components/ui/Switch'
 import TimeRange from './TimeRange'
 
 export interface HabitDraft {
@@ -73,87 +77,55 @@ export default function HabitDialog({ heading, description, confirmLabel, initia
     })
   }
 
-  return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm" onClick={onCancel}>
-    <motion.div initial={{ scale: .96, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: .96, y: 16 }}
-      className="surface my-auto w-full max-w-md p-6" onClick={event => event.stopPropagation()}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow">{heading}</p>
-          <h2 className="mt-1 text-2xl font-semibold">O que se repete?</h2>
-        </div>
-        <button className="icon-button shrink-0" onClick={onCancel} aria-label="Fechar"><X size={18}/></button>
-      </div>
-      {description && <p className="muted mt-3 text-sm">{description}</p>}
+  return <Sheet managed onClose={onCancel} eyebrow={heading} title="O que se repete?" description={description}
+    footer={<div className="flex flex-col gap-2">
+      <Button fullWidth disabled={!valid} onClick={save}>{confirmLabel}</Button>
+      {skipLabel && <Button fullWidth variant="ghost" onClick={onCancel}>{skipLabel}</Button>}
+    </div>}>
+    <input autoFocus value={title} onChange={event => setTitle(event.target.value)} maxLength={160}
+      className="field" placeholder="Ex.: Ler 10 páginas"/>
 
-      <input autoFocus value={title} onChange={event => setTitle(event.target.value)} maxLength={160}
-        className="field mt-6" placeholder="Ex.: Ler 10 páginas"/>
+    <FieldLabel>Em quais dias da semana</FieldLabel>
+    <div className="flex gap-1.5">
+      {weekdays.map(day => <Chip key={day.id} shape="square" className="h-10" selected={days.includes(day.id)} onClick={() => toggleDay(day.id)} aria-label={day.label}>{day.short}</Chip>)}
+    </div>
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {[{ label: 'Todo dia', value: allDays }, { label: 'Dias de semana', value: weekdaysOnly }, { label: 'Fim de semana', value: weekendOnly }].map(preset => (
+        <Chip key={preset.label} size="sm" selected={sameDays(days, preset.value)} onClick={() => setDays(preset.value)}>{preset.label}</Chip>
+      ))}
+    </div>
+    {days.length === 0 && <p className="mt-2 text-caption text-alert">Escolha pelo menos um dia.</p>}
 
-      <p className="muted mb-2 mt-6 text-xs font-semibold uppercase tracking-wider">Em quais dias da semana</p>
-      <div className="flex gap-1.5">
-        {weekdays.map(day => {
-          const active = days.includes(day.id)
-          return <button key={day.id} onClick={() => toggleDay(day.id)} aria-pressed={active} aria-label={day.label}
-            className="grid h-10 flex-1 place-items-center rounded-xl border text-xs font-bold transition"
-            style={{ borderColor: active ? 'var(--energy)' : 'var(--line)', background: active ? 'var(--energy)' : 'transparent', color: active ? '#11130f' : 'var(--muted)' }}>{day.short}</button>
-        })}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {[{ label: 'Todo dia', value: allDays }, { label: 'Dias de semana', value: weekdaysOnly }, { label: 'Fim de semana', value: weekendOnly }].map(preset => (
-          <button key={preset.label} onClick={() => setDays(preset.value)}
-            className="rounded-full border px-3 py-1 text-xs transition"
-            style={{ borderColor: sameDays(days, preset.value) ? 'var(--energy)' : 'var(--line)', color: sameDays(days, preset.value) ? 'var(--accent)' : 'var(--muted)' }}>{preset.label}</button>
-        ))}
-      </div>
-      {days.length === 0 && <p className="mt-2 text-xs" style={{ color: 'var(--danger)' }}>Escolha pelo menos um dia.</p>}
+    <FieldLabel>Em que parte do dia</FieldLabel>
+    <div className="flex flex-wrap gap-1.5">
+      {dayBlocks.map(item => <Chip key={item.id} selected={block === item.id} onClick={() => setBlock(item.id)}>{item.label}</Chip>)}
+    </div>
 
-      <p className="muted mb-2 mt-6 text-xs font-semibold uppercase tracking-wider">Em que parte do dia</p>
-      <div className="flex flex-wrap gap-1.5">
-        {dayBlocks.map(item => <button key={item.id} onClick={() => setBlock(item.id)}
-          className="rounded-full border px-3 py-2 text-xs transition"
-          style={{ borderColor: block === item.id ? 'var(--energy)' : 'var(--line)', background: block === item.id ? 'var(--energy)' : 'transparent', color: block === item.id ? '#11130f' : 'var(--muted)' }}>{item.label}</button>)}
-      </div>
+    <FieldLabel icon={CalendarRange}>Por quanto tempo</FieldLabel>
+    <label className="block text-caption text-fg-2">Começa em
+      <input type="date" className="field mt-1.5" value={startsOn} onChange={event => setStartsOn(event.target.value)}/>
+    </label>
+    <ToggleRow className="mt-3" checked={hasEnd} onChange={setHasEnd} title="Tem data para terminar"
+      description={hasEnd ? 'Depois dessa data o hábito para de aparecer.' : 'Sem prazo — segue até você mudar de ideia.'}/>
+    {hasEnd && <label className="mt-3 block text-caption text-fg-2">Termina em
+      <input type="date" className="field mt-1.5" value={endsOn} min={startsOn} onChange={event => setEndsOn(event.target.value)}/>
+    </label>}
+    {endBeforeStart && <p className="mt-2 text-caption text-alert">A data final precisa vir depois do começo.</p>}
 
-      <p className="muted mb-2 mt-6 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"><CalendarRange size={13}/> Por quanto tempo</p>
-      <label className="muted block text-xs">Começa em
-        <input type="date" className="field mt-2" value={startsOn} onChange={event => setStartsOn(event.target.value)}/>
-      </label>
-      <button onClick={() => setHasEnd(value => !value)}
-        className="mt-3 flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition"
-        style={{ borderColor: hasEnd ? 'rgba(208,224,39,.4)' : 'var(--line)' }}>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">Tem data para terminar</span>
-          <span className="muted block text-xs">{hasEnd ? 'Depois dessa data o hábito para de aparecer.' : 'Sem prazo — segue até você mudar de ideia.'}</span>
-        </span>
-        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border" style={{ borderColor: hasEnd ? 'var(--energy)' : 'rgb(var(--fg-rgb) / .2)', background: hasEnd ? 'var(--energy)' : 'transparent' }}/>
-      </button>
-      {hasEnd && <label className="muted mt-3 block text-xs">Termina em
-        <input type="date" className="field mt-2" value={endsOn} min={startsOn} onChange={event => setEndsOn(event.target.value)}/>
-      </label>}
-      {endBeforeStart && <p className="mt-2 text-xs" style={{ color: 'var(--danger)' }}>A data final precisa vir depois do começo.</p>}
+    <div className="mt-6">
+      <TimeRange enabled={timed} start={start} end={end} onToggle={setTimed} onStart={setStart} onEnd={setEnd}/>
+    </div>
 
-      <div className="mt-6">
-        <TimeRange enabled={timed} start={start} end={end} onToggle={setTimed} onStart={setStart} onEnd={setEnd}/>
-      </div>
-
-      {/* Perguntar a meta aqui é o que impede o hábito de virar tarefa solta:
-          este é o momento em que a pessoa sabe por que está se comprometendo. */}
-      {goals.length > 0 && <>
-        <p className="muted mb-2 mt-6 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"><Target size={13}/> Serve a qual meta</p>
-        {lockGoal
-          ? <p className="rounded-2xl border px-3 py-2.5 text-sm" style={{ borderColor: 'rgba(208,224,39,.4)', color: 'var(--accent)' }}>{goals.find(item => item.id === goalId)?.title}</p>
-          : <div className="flex flex-wrap gap-1.5">
-              <button onClick={() => setGoalId(undefined)}
-                className="rounded-full border px-3 py-2 text-xs transition"
-                style={{ borderColor: !goalId ? 'var(--energy)' : 'var(--line)', background: !goalId ? 'var(--energy)' : 'transparent', color: !goalId ? '#11130f' : 'var(--muted)' }}>Nenhuma</button>
-              {goals.map(item => <button key={item.id} onClick={() => setGoalId(item.id)}
-                className="max-w-full truncate rounded-full border px-3 py-2 text-xs transition"
-                style={{ borderColor: goalId === item.id ? 'var(--energy)' : 'var(--line)', background: goalId === item.id ? 'var(--energy)' : 'transparent', color: goalId === item.id ? '#11130f' : 'var(--muted)' }}>{item.title}</button>)}
-            </div>}
-      </>}
-
-      <button onClick={save} disabled={!valid} className="energy-button mt-6 w-full py-3" style={{ opacity: valid ? 1 : .45 }}>{confirmLabel}</button>
-      {skipLabel && <button onClick={onCancel} className="muted mt-2 w-full rounded-full border py-2.5 text-sm" style={{ borderColor: 'var(--line)' }}>{skipLabel}</button>}
-    </motion.div>
-  </motion.div>
+    {/* Perguntar a meta aqui é o que impede o hábito de virar tarefa solta:
+        este é o momento em que a pessoa sabe por que está se comprometendo. */}
+    {goals.length > 0 && <>
+      <FieldLabel icon={Target}>Serve a qual meta</FieldLabel>
+      {lockGoal
+        ? <p className="rounded-control border border-area-line bg-area-soft px-3 py-2.5 text-body-s text-area-ink">{goals.find(item => item.id === goalId)?.title}</p>
+        : <div className="flex flex-wrap gap-1.5">
+            <Chip selected={!goalId} onClick={() => setGoalId(undefined)}>Nenhuma</Chip>
+            {goals.map(item => <Chip key={item.id} className="max-w-full" selected={goalId === item.id} onClick={() => setGoalId(item.id)}><span className="truncate">{item.title}</span></Chip>)}
+          </div>}
+    </>}
+  </Sheet>
 }

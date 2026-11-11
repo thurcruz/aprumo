@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { ArrowDown, ArrowUp, Dumbbell, Minus, Plus, Timer, Trash2, X } from 'lucide-react'
+import Button from '@/components/ui/Button'
+import Chip from '@/components/ui/Chip'
+import Sheet from '@/components/ui/Sheet'
 import type { ExerciseKind, PlanExercise, PlanSet, WorkoutPlan } from '@/lib/types'
 import { DEFAULT_REST_SECONDS, expandSets, formatDuration, isUniform, REST_PRESETS } from '@/lib/workout'
 import { DurationField, NumberField } from './fields'
@@ -12,12 +14,10 @@ const blankSets = (kind: ExerciseKind, count: number): PlanSet[] =>
 
 function RestPicker({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   return <div className="flex flex-wrap items-center gap-1.5">
-    <Timer size={12} className="shrink-0" style={{ color: 'var(--muted)' }} aria-label="Descanso"/>
-    {REST_PRESETS.map(seconds => <button key={seconds} type="button" onClick={() => onChange(seconds)}
-      className="rounded-full border px-2.5 py-1 text-[11px] transition"
-      style={{ borderColor: value === seconds ? 'var(--energy)' : 'var(--line)', color: value === seconds ? 'var(--accent)' : 'var(--muted)' }}>
+    <Timer size={12} className="shrink-0 text-fg-3" aria-label="Descanso"/>
+    {REST_PRESETS.map(seconds => <Chip key={seconds} size="sm" selected={value === seconds} onClick={() => onChange(seconds)}>
       {seconds === 0 ? 'Sem descanso' : formatDuration(seconds)}
-    </button>)}
+    </Chip>)}
   </div>
 }
 
@@ -79,28 +79,24 @@ export default function PlanEditor({ initial, onCancel, onSave, onDelete }: {
     onSave({ name: name.trim(), exercises: exercises.map(item => ({ ...item, name: item.name.trim() })) })
   }
 
-  return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm" onClick={onCancel}>
-    <motion.div initial={{ scale: .96, y: 15 }} animate={{ scale: 1, y: 0 }} exit={{ scale: .96, y: 15 }}
-      className="surface my-auto w-full max-w-xl p-6" onClick={event => event.stopPropagation()}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow">{initial ? 'Editar ficha' : 'Nova ficha'}</p>
-          <h2 className="mt-1 text-2xl font-semibold">Monte o treino</h2>
-        </div>
-        <button className="icon-button shrink-0" onClick={onCancel} aria-label="Fechar"><X size={17}/></button>
-      </div>
-
-      <input autoFocus className="field mt-6" placeholder="Ex.: Treino A — peito e tríceps" maxLength={160}
+  return <Sheet managed onClose={onCancel} size="lg" eyebrow={initial ? 'Editar ficha' : 'Nova ficha'} title="Monte o treino"
+    footer={<div className="flex flex-col gap-2">
+      <Button fullWidth onClick={save}>{initial ? 'Salvar ficha' : 'Criar ficha'}</Button>
+      {onDelete && <Button fullWidth variant={confirmDelete ? 'danger' : 'ghost'} onClick={() => confirmDelete ? onDelete() : setConfirmDelete(true)}>
+        {confirmDelete ? 'Confirmar exclusão — o histórico continua' : 'Excluir ficha'}
+      </Button>}
+    </div>}>
+    <div>
+      <input autoFocus className="field" placeholder="Ex.: Treino A — peito e tríceps" maxLength={160}
         value={name} onChange={event => setName(event.target.value)}
         style={{ borderColor: tried && !named ? 'rgba(255,107,107,.45)' : undefined }}/>
 
       <div className="mt-5 space-y-3">
-        {exercises.length === 0 && <p className="muted rounded-2xl border border-dashed border-white/10 p-5 text-center text-xs">Nenhum exercício ainda. Adicione o primeiro abaixo.</p>}
+        {exercises.length === 0 && <p className="rounded-control border border-dashed border-line-strong p-5 text-center text-caption text-fg-2">Nenhum exercício ainda. Adicione o primeiro abaixo.</p>}
         {exercises.map((item, index) => {
           const open = detailed.includes(item.id)
           const first: PlanSet = item.sets[0] ?? {}
-          return <div key={item.id} className="rounded-2xl border p-4" style={{ borderColor: tried && !item.name.trim() ? 'rgba(255,107,107,.45)' : 'var(--line)' }}>
+          return <div key={item.id} className={`rounded-card border bg-surface-2 p-4 ${tried && !item.name.trim() ? 'border-alert/45' : 'border-line'}`}>
             <div className="flex items-center gap-2">
               <span className="muted w-5 shrink-0 text-center text-xs font-bold">{index + 1}</span>
               <input value={item.name} onChange={event => patch(item.id, { name: event.target.value })} maxLength={120}
@@ -111,11 +107,9 @@ export default function PlanEditor({ initial, onCancel, onSave, onDelete }: {
             </div>
 
             <div className="mt-3 flex gap-1.5">
-              {(['reps', 'time'] as ExerciseKind[]).map(kind => <button key={kind} type="button" onClick={() => switchKind(item, kind)}
-                className="rounded-full border px-3 py-1 text-[11px] font-semibold transition"
-                style={{ borderColor: item.kind === kind ? 'var(--energy)' : 'var(--line)', background: item.kind === kind ? 'var(--energy)' : 'transparent', color: item.kind === kind ? '#11130f' : 'var(--muted)' }}>
+              {(['reps', 'time'] as ExerciseKind[]).map(kind => <Chip key={kind} size="sm" selected={item.kind === kind} onClick={() => switchKind(item, kind)}>
                 {kind === 'reps' ? 'Repetições' : 'Tempo'}
-              </button>)}
+              </Chip>)}
             </div>
 
             {open
@@ -133,7 +127,7 @@ export default function PlanEditor({ initial, onCancel, onSave, onDelete }: {
                   </div>)}
                   <div className="flex flex-wrap gap-4 pt-1">
                     <button type="button" onClick={() => patch(item.id, { sets: [...item.sets, { ...item.sets[item.sets.length - 1] }] })} disabled={item.sets.length >= 20}
-                      className="flex items-center gap-1 text-xs text-energy disabled:opacity-30"><Plus size={12}/> Série</button>
+                      className="flex items-center gap-1 text-xs text-area-ink disabled:opacity-30"><Plus size={12}/> Série</button>
                     <button type="button" onClick={() => { patch(item.id, { sets: expandSets(item.sets.length, first) }); toggleDetailed(item.id) }}
                       className="muted text-xs hover:text-white">Igualar todas à primeira</button>
                   </div>
@@ -162,20 +156,13 @@ export default function PlanEditor({ initial, onCancel, onSave, onDelete }: {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => addExercise('reps')} className="flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs" style={{ borderColor: 'var(--line)' }}><Dumbbell size={13}/> Exercício com carga</button>
-        <button type="button" onClick={() => addExercise('time')} className="flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs" style={{ borderColor: 'var(--line)' }}><Timer size={13}/> Exercício por tempo</button>
+        <Button size="sm" variant="secondary" icon={<Dumbbell size={14}/>} onClick={() => addExercise('reps')}>Exercício com carga</Button>
+        <Button size="sm" variant="secondary" icon={<Timer size={14}/>} onClick={() => addExercise('time')}>Exercício por tempo</Button>
       </div>
 
-      {tried && !valid && <p className="mt-4 text-xs" style={{ color: 'var(--danger)' }}>
+      {tried && !valid && <p className="mt-4 text-caption text-alert">
         {!named ? 'Dê um nome à ficha.' : exercises.length === 0 ? 'Adicione pelo menos um exercício.' : 'Dê um nome a cada exercício.'}
       </p>}
-
-      <button onClick={save} className="energy-button mt-5 w-full py-3">{initial ? 'Salvar ficha' : 'Criar ficha'}</button>
-      {onDelete && <button onClick={() => confirmDelete ? onDelete() : setConfirmDelete(true)}
-        className="mt-2 w-full rounded-full border py-2.5 text-sm"
-        style={{ borderColor: confirmDelete ? 'rgba(255,107,107,.45)' : 'var(--line)', color: confirmDelete ? 'var(--danger)' : 'var(--muted)' }}>
-        {confirmDelete ? 'Confirmar exclusão — o histórico continua' : 'Excluir ficha'}
-      </button>}
-    </motion.div>
-  </motion.div>
+    </div>
+  </Sheet>
 }

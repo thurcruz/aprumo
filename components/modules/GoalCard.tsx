@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Archive, Check, CheckCircle2, ChevronDown, MoreVertical, PauseCircle, Pencil, Play, Plus, Target, Trash2 } from 'lucide-react'
+import { AlertTriangle, Archive, Check, CheckCircle2, ChevronDown, MoreVertical, PauseCircle, Pencil, Play, Plus, Target, Timer, Trash2 } from 'lucide-react'
+import { focusHref } from '@/lib/focus'
 import type { Goal, GoalStatus, Milestone, Task } from '@/lib/types'
 import { deadlineState, describeDeadline, goalAlert, goalProgress, isoDate } from '@/lib/utils'
 
@@ -152,7 +153,8 @@ export default function GoalCard({ goal, tasks = [], consistency, doneOn, onUpda
             const completed = doneOn?.(task) ?? false
             return <div key={task.id} className="flex items-center gap-2.5 text-sm">
               <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border" style={{ borderColor: completed ? 'var(--energy)' : 'rgb(var(--fg-rgb) / .18)', background: completed ? 'var(--energy)' : 'transparent', color: '#11130f' }}>{completed && <Check size={10}/>}</span>
-              <span className={`truncate ${completed ? 'text-white/35 line-through' : ''}`}>{task.title}</span>
+              <span className={`min-w-0 flex-1 truncate ${completed ? 'text-white/35 line-through' : ''}`}>{task.title}</span>
+              {!completed && <Link href={focusHref(task.id)} aria-label={`Focar em ${task.title}`} className="muted flex shrink-0 items-center gap-1 text-[11px] no-underline hover:text-white"><Timer size={12}/> Focar</Link>}
             </div>
           })}</div>}
     </div>

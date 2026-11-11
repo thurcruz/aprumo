@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { CalendarRange, X } from 'lucide-react'
+import { CalendarRange } from 'lucide-react'
 import type { GoalCategory } from '@/lib/types'
 import { describeDeadline, isoDate } from '@/lib/utils'
-import ChipSelect from '@/components/ui/ChipSelect'
+import Button from '@/components/ui/Button'
+import Chip from '@/components/ui/Chip'
+import FieldLabel from '@/components/ui/FieldLabel'
+import Sheet from '@/components/ui/Sheet'
 
 export interface GoalDraft {
   title: string
@@ -63,40 +65,28 @@ export default function GoalDialog({ heading, confirmLabel, initial, onCancel, o
   const valid = title.trim().length >= 2 && Boolean(deadline)
   const hint = describeDeadline(deadline, today)
 
-  return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm" onClick={onCancel}>
-    <motion.div initial={{ scale: .96, y: 15 }} animate={{ scale: 1, y: 0 }} exit={{ scale: .96, y: 15 }}
-      className="surface my-auto w-full max-w-lg p-6" onClick={event => event.stopPropagation()}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow">{heading}</p>
-          <h2 className="mt-1 text-2xl font-semibold">Onde você quer chegar?</h2>
-        </div>
-        <button className="icon-button shrink-0" onClick={onCancel} aria-label="Fechar"><X size={17}/></button>
-      </div>
+  return <Sheet managed onClose={onCancel} eyebrow={heading} title="Onde você quer chegar?"
+    footer={<Button fullWidth disabled={!valid} onClick={() => valid && onSave({ title: title.trim(), description: description.trim(), category, deadline })}>{confirmLabel}</Button>}>
+    <div className="space-y-3">
+      <input autoFocus className="field" placeholder="O que você quer alcançar?" maxLength={160}
+        value={title} onChange={event => setTitle(event.target.value)}/>
+      <textarea className="field resize-none" rows={3} placeholder="Por que isso importa?" maxLength={600}
+        value={description} onChange={event => setDescription(event.target.value)}/>
+    </div>
 
-      <div className="mt-6 space-y-3">
-        <input autoFocus className="field" placeholder="O que você quer alcançar?" maxLength={160}
-          value={title} onChange={event => setTitle(event.target.value)}/>
-        <textarea className="field resize-none" rows={3} placeholder="Por que isso importa?" maxLength={600}
-          value={description} onChange={event => setDescription(event.target.value)}/>
-        <ChipSelect size="sm" className="flex flex-wrap gap-2" value={category} onChange={setCategory} options={options}/>
-      </div>
+    <FieldLabel>Área</FieldLabel>
+    <div className="flex flex-wrap gap-1.5">
+      {options.map(option => <Chip key={option.value} selected={category === option.value} onClick={() => setCategory(option.value)}>{option.label}</Chip>)}
+    </div>
 
-      <p className="muted mb-2 mt-6 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"><CalendarRange size={13}/> Até quando</p>
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {presets.map(preset => {
-          const value = inDays(preset.days)
-          return <button key={preset.label} onClick={() => setDeadline(value)}
-            className="rounded-full border px-3 py-1 text-xs transition"
-            style={{ borderColor: deadline === value ? 'var(--energy)' : 'var(--line)', color: deadline === value ? 'var(--accent)' : 'var(--muted)' }}>{preset.label}</button>
-        })}
-      </div>
-      <input type="date" className="field" value={deadline} min={today} onChange={event => setDeadline(event.target.value)}/>
-      {hint && <p className="muted mt-2 text-xs">{hint}</p>}
-
-      <button onClick={() => valid && onSave({ title: title.trim(), description: description.trim(), category, deadline })}
-        disabled={!valid} className="energy-button mt-6 w-full py-3" style={{ opacity: valid ? 1 : .45 }}>{confirmLabel}</button>
-    </motion.div>
-  </motion.div>
+    <FieldLabel icon={CalendarRange}>Até quando</FieldLabel>
+    <div className="mb-3 flex flex-wrap gap-1.5">
+      {presets.map(preset => {
+        const value = inDays(preset.days)
+        return <Chip key={preset.label} size="sm" selected={deadline === value} onClick={() => setDeadline(value)}>{preset.label}</Chip>
+      })}
+    </div>
+    <input type="date" className="field" value={deadline} min={today} onChange={event => setDeadline(event.target.value)}/>
+    {hint && <p className="mt-2 text-caption text-fg-2">{hint}</p>}
+  </Sheet>
 }
