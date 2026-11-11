@@ -8,6 +8,7 @@ import { publishFocusSession } from '@/lib/feed'
 import Button from '@/components/ui/Button'
 import Sheet from '@/components/ui/Sheet'
 import { ToggleRow } from '@/components/ui/Switch'
+import { COMMUNITY_OPEN } from '@/components/layout/nav'
 
 type Status = 'idle' | 'shared' | 'copied' | 'downloaded' | 'failed'
 type PostStatus = 'idle' | 'busy' | 'done' | 'failed'
@@ -88,7 +89,7 @@ export default function ShareSessionDialog({ session, userName, onClose }: {
       {messages[status]}
     </p>}
 
-    <div className="mt-5 border-t border-line pt-5">
+    {COMMUNITY_OPEN && <div className="mt-5 border-t border-line pt-5">
       <ToggleRow checked={showName} onChange={value => { if (postStatus !== 'done') setShowName(value) }} title="Mostrar no que focou"
         description="O nome da sessão aparece na publicação."/>
       <Button fullWidth variant="secondary" className="mt-3" onClick={onPublish} disabled={postStatus === 'done'} loading={postStatus === 'busy'}
@@ -96,6 +97,6 @@ export default function ShareSessionDialog({ session, userName, onClose }: {
         {postStatus === 'done' ? 'Publicado na comunidade' : 'Publicar na comunidade'}
       </Button>
       {postStatus === 'failed' && <p className="mt-2 text-center text-caption text-alert">{postError}</p>}
-    </div>
+    </div>}
   </Sheet>
 }

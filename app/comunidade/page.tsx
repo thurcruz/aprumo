@@ -11,6 +11,7 @@ import PageHeader from '@/components/ui/PageHeader'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { castVote, getCommunityServerSnapshot, getCommunitySnapshot, subscribeCommunity } from '@/lib/community'
 import { tally, voteFeatures } from '@/lib/votes'
+import { COMMUNITY_OPEN } from '@/components/layout/nav'
 import { deletePost, getFeedServerSnapshot, getFeedSnapshot, subscribeFeed } from '@/lib/feed'
 import { postHeadline, timeAgo } from '@/lib/posts'
 import { initialsOf } from '@/lib/profile'
@@ -32,6 +33,10 @@ function EmptyCard({ icon, title, description, action }: { icon: LucideIcon; tit
 
 // useSearchParams() exige um limite de Suspense para a página poder ser pré-renderizada.
 export default function ComunidadePage() {
+  if (!COMMUNITY_OPEN) return <div className="page-wrap">
+    <PageHeader title="Comunidade"/>
+    <EmptyCard icon={UsersRound} title="A comunidade está chegando" description="Desafios, círculos e o mural para manter a constância com outras pessoas. Por enquanto, o foco é o seu plano." action="Em breve"/>
+  </div>
   return <Suspense fallback={null}><Comunidade/></Suspense>
 }
 

@@ -20,6 +20,14 @@ export default function BottomNav() {
         {areaNav.map(item => {
           const active = isActive(pathname, item)
           const Icon = item.icon
+          if (item.soon) return <span key={item.href} aria-disabled title="Em breve"
+            className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 opacity-60">
+            <span className="relative grid h-7 w-12 place-items-center rounded-full text-fg-3">
+              <Icon size={20} strokeWidth={1.8}/>
+              <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-line bg-surface-2 px-1.5 text-[8px] font-medium leading-[14px] text-fg-2">Em breve</span>
+            </span>
+            <span className="max-w-full truncate text-[11px] leading-none text-fg-3">{item.label}</span>
+          </span>
           return <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined}
             className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 no-underline">
             <span className={cx('grid h-7 w-12 place-items-center rounded-full transition-colors duration-200 ease-ap', active ? 'bg-area-soft text-area-ink' : 'text-fg-2')}>

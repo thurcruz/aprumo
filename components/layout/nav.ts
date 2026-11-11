@@ -7,15 +7,23 @@ export interface NavItem {
   icon: LucideIcon
   /** Rotas que pertencem a este item: a área continua acesa dentro das suas subpáginas. */
   also?: string[]
+  /** Aparece no menu com o selo "Em breve", sem levar a lugar nenhum. */
+  soon?: boolean
 }
+
+/**
+ * Comunidade fechada no lançamento: sem gente, mural e círculos vazios passam
+ * a impressão de app abandonado. Virar para true reabre menu, tela e publicação.
+ */
+export const COMMUNITY_OPEN = false
 
 /** Os cinco destinos. A mesma lista alimenta o menu lateral e a barra de baixo. */
 export const areaNav: NavItem[] = [
-  { href: '/hoje', label: 'Hoje', icon: Sun, also: ['/agenda', '/tarefas', '/metas', '/foco', '/emocional'] },
-  { href: '/comunidade', label: 'Comunidade', icon: UsersRound },
+  { href: '/hoje', label: 'Hoje', icon: Sun, also: ['/foco', '/emocional'] },
   { href: '/pri', label: 'Pri', icon: Sparkles },
   { href: '/planos', label: 'Planos', icon: Route },
   { href: '/extensoes', label: 'Extensões', icon: Blocks, also: ['/financas', '/treino', '/saude', '/mente', '/antivicio'] },
+  { href: '/comunidade', label: 'Comunidade', icon: UsersRound, soon: !COMMUNITY_OPEN },
 ]
 
 export const systemNav: NavItem[] = [

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Avatar from '@/components/profile/Avatar'
+import Badge from '@/components/ui/Badge'
 import { useProfile } from '@/lib/profile'
 import { cx } from '@/lib/cx'
 import Logo from './Logo'
@@ -16,6 +17,11 @@ export default function Sidebar() {
   const link = (item: NavItem) => {
     const active = isActive(pathname, item)
     const Icon = item.icon
+    if (item.soon) return <span key={item.href} aria-disabled className="flex h-10 cursor-default items-center gap-3 rounded-control px-3 text-body-s text-fg-3">
+      <Icon size={18} className="shrink-0"/>
+      <span className="truncate">{item.label}</span>
+      <Badge className="ml-auto h-5 px-2 text-[10px]">Em breve</Badge>
+    </span>
     return <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined}
       className={cx('group flex h-10 items-center gap-3 rounded-control px-3 text-body-s no-underline transition-colors duration-200 ease-ap',
         active ? 'bg-surface-pressed font-medium text-fg-1' : 'text-fg-2 hover:bg-surface-hover hover:text-fg-1')}>
